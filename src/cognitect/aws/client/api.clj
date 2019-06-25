@@ -26,11 +26,11 @@
                           you want to interact with e.g. :s3, :cloudformation, etc
   :region               - optional, the aws region serving the API endpoints you
                           want to interact with, defaults to region provided by
-                          by the default region provider (see cognitect.aws.region)
+                          by the default region provider (see `cognitect.aws.region`)
   :credentials-provider - optional, implementation of
-                          cognitect.aws.credentials/CredentialsProvider
+                          `cognitect.aws.credentials/CredentialsProvider`
                           protocol, defaults to
-                          cognitect.aws.credentials/default-credentials-provider
+                          `cognitect.aws.credentials/default-credentials-provider`
   :endpoint-override    - optional, map to override parts of the endpoint. Supported keys:
                             :protocol     - :http or :https
                             :hostname     - string
@@ -46,18 +46,18 @@
                           flavored request map, the op-map from `invoke` and a core.async
                           channel where the function should put! the result on.
                           The function must return with the channel passed in.
-  :region-provider      - optional, implementation of aws-clojure.region/RegionProvider
-                          protocol, defaults to cognitect.aws.region/default-region-provider
-  :retriable?           - optional, fn of http-response (see cognitect.http-client/submit).
+  :region-provider      - optional, implementation of `aws-clojure.region/RegionProvider`
+                          protocol, defaults to `cognitect.aws.region/default-region-provider`
+  :retriable?           - optional, fn of http-response (see `cognitect.http-client/submit`).
                           Should return a boolean telling the client whether or
                           not the request is retriable.  The default,
-                          cognitect.aws.retry/default-retriable?, returns
+                          `cognitect.aws.retry/default-retriable?`, returns
                           true when the response indicates that the service is
                           busy or unavailable.
   :backoff              - optional, fn of number of retries so far. Should return
                           number of milliseconds to wait before the next retry
                           (if the request is retriable?), or nil if it should stop.
-                          Defaults to cognitect.aws.retry/default-backoff.
+                          Defaults to `cognitect.aws.retry/default-backoff`.
 
   Alpha. Subject to change."
   [{:keys [api region region-provider retriable? backoff send-http credentials-provider endpoint-override]
@@ -167,10 +167,10 @@
 
   Alpha. Subject to change."
   [client]
-  (->> client
-       client/-get-info
-       :service
-       service/docs))
+  (-> client
+      client/-get-info
+      :service
+      service/docs))
 
 (defn doc-str
   "Given data produced by `ops`, returns a string
