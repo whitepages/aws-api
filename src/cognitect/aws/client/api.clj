@@ -116,6 +116,13 @@
   [client op-map]
   (a/<!! (api.async/invoke client op-map)))
 
+(defn http-request
+  "Returns a Ring request map that the `invoke` sends internally.
+
+  Alpha. Subject to change."
+  [client op-map]
+  (client/http-request client op-map))
+
 (defn validate-requests
   "Given true, uses clojure.spec to validate all invoke calls on client.
 
