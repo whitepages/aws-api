@@ -42,9 +42,10 @@
                           Also supports a string representing just the hostname, though
                           support for a string is deprectated and may be removed in the
                           future.
-  :send-http            - optional, a user supplied function which takes a Ring request map
-                          and a core.async channel where the function should put! the result
-                          on. The function must return with the channel passed in.
+  :send-http            - optional, a user supplied function which takes a cognitect-http
+                          flavored request map, the op-map from `invoke` and a core.async
+                          channel where the function should put! the result on.
+                          The function must return with the channel passed in.
   :region-provider      - optional, implementation of aws-clojure.region/RegionProvider
                           protocol, defaults to cognitect.aws.region/default-region-provider
   :retriable?           - optional, fn of http-response (see cognitect.http-client/submit).
@@ -89,7 +90,7 @@
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
         :send-http   (or send-http
-                         (fn [req chan]
+                         (fn [req op-map chan] ;; op-map unused for now: add timeout support?
                            (http/submit http-client req chan)))
         :http-client http-client
         :credentials (or credentials-provider @credentials/global-provider)})
