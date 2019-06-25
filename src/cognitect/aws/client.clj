@@ -85,7 +85,7 @@
         (swap! result-meta assoc :http-request req)
         (if send-http
           (send-http req result-chan)
-          (http/submit http-client http-request result-chan)))
+          (http/submit http-client req result-chan)))
       (catch Throwable t
         (let [err-ch (a/chan 1)]
           (a/put! err-ch (with-meta
