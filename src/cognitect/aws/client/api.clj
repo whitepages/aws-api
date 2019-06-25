@@ -68,7 +68,8 @@
       "DEPRECATION NOTICE: :endpoint-override string is deprecated.\nUse {:endpoint-override {:hostname \"%s\"}} instead."
       endpoint-override)))
   (let [service     (service/service-description (name api))
-        http-client (or send-http (http/create {:trust-all true})) ;; FIX :trust-all
+        http-client (when-not send-http
+                      (http/create {:trust-all true})) ;; FIX :trust-all
         region      (keyword
                      (or region
                          (region/fetch
