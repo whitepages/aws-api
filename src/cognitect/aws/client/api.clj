@@ -121,7 +121,7 @@
   (a/<!! (api.async/invoke client op-map)))
 
 (defn http-request
-  "Returns a Ring request map that the `invoke` sends internally.
+  "Returns a Ring request map that `invoke` sends internally.
 
   Alpha. Subject to change."
   [client op-map]
