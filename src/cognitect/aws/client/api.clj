@@ -90,8 +90,12 @@
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
         :send-http   (or send-http
-                         (fn [req op-map chan] ;; op-map unused for now: add timeout support?
-                           (http/submit http-client req chan)))
+                         (fn [req op-map chan]
+                           (http/submit
+                            http-client
+                            (merge req
+                                   (select-keys op-map [:cognitect.http-client/timeout-msec]))
+                            chan)))
         :http-client http-client
         :credentials (or credentials-provider @credentials/global-provider)})
       {'clojure.core.protocols/datafy (fn [c]
