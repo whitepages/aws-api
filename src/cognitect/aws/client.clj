@@ -41,7 +41,7 @@
   (try
     (if-let [anomaly-category (:cognitect.anomaly/category http-response)]
       {:cognitect.anomalies/category anomaly-category
-       ::throwable (::http/throwable http-response)}
+       ::throwable (:cognitect.http-client/throwable http-response)}
       (parse-http-response service op-map http-response))
     (catch Throwable t
       {:cognitect.anomalies/category :cognitect.anomalies/fault
