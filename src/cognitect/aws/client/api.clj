@@ -42,6 +42,9 @@
                           Also supports a string representing just the hostname, though
                           support for a string is deprectated and may be removed in the
                           future.
+  :send-http            - optional, a user supplied function which takes a Ring request map
+                          and a core.async channel where the function should put! the result
+                          on. The function must return with the channel passed in.
   :region-provider      - optional, implementation of aws-clojure.region/RegionProvider
                           protocol, defaults to cognitect.aws.region/default-region-provider
   :retriable?           - optional, fn of http-response (see cognitect.http-client/submit).
@@ -56,7 +59,7 @@
                           Defaults to cognitect.aws.retry/default-backoff.
 
   Alpha. Subject to change."
-  [{:keys [api region region-provider retriable? backoff credentials-provider endpoint endpoint-override]
+  [{:keys [api region region-provider retriable? backoff send-http credentials-provider endpoint-override]
     :or {endpoint-override {}}
     :as config}]
   (when (string? endpoint-override)
@@ -83,12 +86,13 @@
                        (throw (ex-info "No known endpoint." {:service api :region region})))
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
+        :send-http   send-http
         :http-client (http/create {:trust-all true}) ;; FIX :trust-all
         :credentials (or credentials-provider @credentials/global-provider)})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
                                             client/-get-info
-                                            (select-keys [:region :endpoint :service])
+                                            (select-keys [:region :endpoint :service :send-http])
                                             (update :endpoint select-keys [:hostname :protocols :signatureVersions])
                                             (update :service select-keys [:metadata])
                                             (assoc :ops (ops c))))})))
@@ -199,5 +203,5 @@
 
   Alpha. Subject to change."
   [client]
-  (let [{:keys [http-client credentials]} (client/-get-info client)]
+  (let [{:keys [http-client]} (client/-get-info client)]
     (http/stop http-client)))

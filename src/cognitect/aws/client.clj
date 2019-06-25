@@ -60,25 +60,32 @@
     port     (assoc :server-port port)
     path     (assoc :uri path)))
 
+(defn http-request
+  "Creates a Ring request map ready to be sent via any Ring-compatible HTTP client."
+  [client op-map]
+  (let [{:keys [service region credentials endpoint]} (-get-info client)]
+    (sign-http-request service region (credentials/fetch credentials)
+                       (-> (build-http-request service op-map)
+                           (with-endpoint endpoint)
+                           (update :body util/->bbuf)
+                           ((partial interceptors/modify-http-request service op-map))))))
+
 (defn send-request
   "Send the request to AWS and return a channel which delivers the response."
   [client op-map]
-  (let [result-meta (atom {})]
+  (let [{:keys [service http-client send-http]} (-get-info client)
+        result-meta                             (atom {})]
     (try
-      (let [{:keys [service region credentials endpoint http-client]} (-get-info client)
-            http-request (sign-http-request service region (credentials/fetch credentials)
-                                            (-> (build-http-request service op-map)
-                                                (with-endpoint endpoint)
-                                                (update :body util/->bbuf)
-                                                ((partial interceptors/modify-http-request service op-map))))]
-        (swap! result-meta assoc :http-request http-request)
-        (http/submit http-client
-                     http-request
-                     (a/chan 1 (map #(with-meta
-                                       (handle-http-response service op-map %)
-                                       (assoc @result-meta
-                                              :http-response
-                                              (update % :body util/bbuf->input-stream)))))))
+      (let [req         (http-request client op-map)
+            result-chan (a/chan 1 (map #(with-meta
+                                          (handle-http-response service op-map %)
+                                          (assoc @result-meta
+                                                 :http-response
+                                                 (update % :body util/bbuf->input-stream)))))]
+        (swap! result-meta assoc :http-request req)
+        (if send-http
+          (send-http req result-chan)
+          (http/submit http-client http-request result-chan)))
       (catch Throwable t
         (let [err-ch (a/chan 1)]
           (a/put! err-ch (with-meta
