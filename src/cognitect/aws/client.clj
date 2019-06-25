@@ -73,8 +73,8 @@
 (defn send-request
   "Send the request to AWS and return a channel which delivers the response."
   [client op-map]
-  (let [{:keys [service http-client send-http]} (-get-info client)
-        result-meta                             (atom {})]
+  (let [{:keys [service send-http]} (-get-info client)
+        result-meta                 (atom {})]
     (try
       (let [req         (http-request client op-map)
             result-chan (a/chan 1 (map #(with-meta
@@ -83,9 +83,7 @@
                                                  :http-response
                                                  (update % :body util/bbuf->input-stream)))))]
         (swap! result-meta assoc :http-request req)
-        (if send-http
-          (send-http req result-chan)
-          (http/submit http-client req result-chan)))
+        (send-http req result-chan))
       (catch Throwable t
         (let [err-ch (a/chan 1)]
           (a/put! err-ch (with-meta

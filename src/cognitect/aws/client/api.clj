@@ -60,19 +60,20 @@
 
   Alpha. Subject to change."
   [{:keys [api region region-provider retriable? backoff send-http credentials-provider endpoint-override]
-    :or {endpoint-override {}}
-    :as config}]
+    :or   {endpoint-override {}}
+    :as   config}]
   (when (string? endpoint-override)
     (log/warn
      (format
       "DEPRECATION NOTICE: :endpoint-override string is deprecated.\nUse {:endpoint-override {:hostname \"%s\"}} instead."
       endpoint-override)))
-  (let [service   (service/service-description (name api))
-        region    (keyword
-                   (or region
-                       (region/fetch
-                        (or region-provider
-                            (region/default-region-provider)))))]
+  (let [service     (service/service-description (name api))
+        http-client (or send-http (http/create {:trust-all true})) ;; FIX :trust-all
+        region      (keyword
+                     (or region
+                         (region/fetch
+                          (or region-provider
+                              (region/default-region-provider)))))]
     (require (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
     (with-meta
       (client/->Client
@@ -86,8 +87,10 @@
                        (throw (ex-info "No known endpoint." {:service api :region region})))
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
-        :send-http   send-http
-        :http-client (http/create {:trust-all true}) ;; FIX :trust-all
+        :send-http   (or send-http
+                         (fn [req chan]
+                           (http/submit http-client req chan)))
+        :http-client http-client
         :credentials (or credentials-provider @credentials/global-provider)})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
@@ -210,5 +213,7 @@
 
   Alpha. Subject to change."
   [client]
-  (let [{:keys [http-client]} (client/-get-info client)]
-    (http/stop http-client)))
+  (some-> client
+          client/-get-info
+          :http-client
+          http/stop))
