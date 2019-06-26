@@ -17,7 +17,7 @@
             [cognitect.aws.signers] ;; implements multimethods
             [cognitect.aws.util :as util]))
 
-(declare ops)
+(declare ops sign-http-request)
 
 (defn client
   "Given a config map, create a client for specified api. Supported keys
@@ -43,9 +43,11 @@
                           support for a string is deprectated and may be removed in the
                           future.
   :send-http            - optional, a user supplied function which takes a cognitect-http
-                          flavored request map, the op-map from `invoke` and a core.async
-                          channel where the function should put! the result on.
-                          The function must return with the channel passed in.
+                          flavored request map, the client, the op-map from `invoke`
+                          and a core.async channel where the function should put! the result on.
+                          Since the request can be modified before being sent with a client,
+                          this function is responsible for signing the request with `sign-http-request`.
+                          The return value is ignored.
   :region-provider      - optional, implementation of `aws-clojure.region/RegionProvider`
                           protocol, defaults to `cognitect.aws.region/default-region-provider`
   :retriable?           - optional, fn of http-response (see `cognitect.http-client/submit`).
@@ -60,7 +62,7 @@
                           Defaults to `cognitect.aws.retry/default-backoff`.
 
   Alpha. Subject to change."
-  [{:keys [api region region-provider retriable? backoff send-http credentials-provider endpoint-override]
+  [{:keys [api region region-provider retriable? backoff http-client send-http credentials-provider endpoint-override]
     :or   {endpoint-override {}}
     :as   config}]
   (when (string? endpoint-override)
@@ -69,8 +71,9 @@
       "DEPRECATION NOTICE: :endpoint-override string is deprecated.\nUse {:endpoint-override {:hostname \"%s\"}} instead."
       endpoint-override)))
   (let [service     (service/service-description (name api))
-        http-client (when-not send-http
-                      (http/create {:trust-all true})) ;; FIX :trust-all
+        http-client (cond
+                      http-client     http-client
+                      (not send-http) (http/create {:trust-all true})) ;; FIX :trust-all
         region      (keyword
                      (or region
                          (region/fetch
@@ -90,10 +93,10 @@
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
         :send-http   (or send-http
-                         (fn [req op-map chan]
+                         (fn [req client op-map chan]
                            (http/submit
                             http-client
-                            (merge req
+                            (merge (sign-http-request client req)
                                    (select-keys op-map [:cognitect.http-client/timeout-msec]))
                             chan)))
         :http-client http-client
@@ -126,11 +129,19 @@
   (a/<!! (api.async/invoke client op-map)))
 
 (defn http-request
-  "Returns a Ring request map that `invoke` sends internally.
+  "Returns a request map that once signed via `sign-http-request`
+  can be sent to AWS with `cognitect.http-client/submit`.
 
   Alpha. Subject to change."
   [client op-map]
   (client/http-request client op-map))
+
+(defn sign-http-request
+  "Signs request so it can be sent to
+
+  Alpha. Subject to change."
+  [client request]
+  (client/sign-http-request-with-client client request))
 
 (defn validate-requests
   "Given true, uses clojure.spec to validate all invoke calls on client.

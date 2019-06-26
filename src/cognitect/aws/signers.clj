@@ -100,8 +100,10 @@
   [request]
   (util/hex-encode (util/sha-256 (:body request))))
 
+[(vec (util/sha-256 "")) (vec (util/sha-256 nil))]
+
 (defn canonical-request
-  [{:keys [headers body content-length] :as request}]
+  [{:keys [headers] :as request}]
   (str/join "\n" [(canonical-method request)
                   (canonical-uri request)
                   (canonical-query-string request)

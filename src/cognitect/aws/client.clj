@@ -60,14 +60,19 @@
     path     (assoc :uri path)))
 
 (defn http-request
-  "Creates a Ring request map ready to be sent via any Ring-compatible HTTP client."
+  "Creates a Ring request map that needs to be signed before being sent by `cognitect.http-client/submit`."
   [client op-map]
-  (let [{:keys [service region credentials endpoint]} (-get-info client)]
-    (sign-http-request service region (credentials/fetch credentials)
-                       (-> (build-http-request service op-map)
-                           (with-endpoint endpoint)
-                           (update :body util/->bbuf)
-                           ((partial interceptors/modify-http-request service op-map))))))
+  (let [{:keys [service endpoint]} (-get-info client)]
+    (-> (build-http-request service op-map)
+        (with-endpoint endpoint)
+        (update :body util/->bbuf)
+        ((partial interceptors/modify-http-request service op-map)))))
+
+(defn sign-http-request-with-client
+  "Signs a request with a client and a request returned by `http-request`."
+  [client request]
+  (let [{:keys [service region credentials]} (-get-info client)]
+    (sign-http-request service region (credentials/fetch credentials) request)))
 
 (defn send-request
   "Send the request to AWS and return a channel which delivers the response."
@@ -82,7 +87,8 @@
                                                  :http-response
                                                  (update % :body util/bbuf->input-stream)))))]
         (swap! result-meta assoc :http-request req)
-        (send-http req op-map result-chan))
+        (send-http req op-map result-chan)
+        result-chan)
       (catch Throwable t
         (let [err-ch (a/chan 1)]
           (a/put! err-ch (with-meta
