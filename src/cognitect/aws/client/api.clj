@@ -48,6 +48,7 @@
                           Since the request can be modified before being sent with a client,
                           this function is responsible for signing the request with `sign-http-request`.
                           The return value is ignored.
+  :http-client          - optional, an `cognitect.http-client/Client` implementation
   :region-provider      - optional, implementation of `aws-clojure.region/RegionProvider`
                           protocol, defaults to `cognitect.aws.region/default-region-provider`
   :retriable?           - optional, fn of http-response (see `cognitect.http-client/submit`).
