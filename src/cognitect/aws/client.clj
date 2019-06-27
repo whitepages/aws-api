@@ -87,7 +87,7 @@
                                                  :http-response
                                                  (update % :body util/bbuf->input-stream)))))]
         (swap! result-meta assoc :http-request req)
-        (send-http req op-map result-chan)
+        (send-http req client op-map result-chan)
         result-chan)
       (catch Throwable t
         (let [err-ch (a/chan 1)]
