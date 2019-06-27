@@ -40,9 +40,9 @@
   [service {:keys [op] :as op-map} {:keys [status headers body] :as http-response}]
   (if (:cognitect.anomalies/category http-response)
     http-response
-    (let [operation (get-in service [:operations op])
+    (let [operation    (get-in service [:operations op])
           output-shape (service/shape service (:output operation))]
-      (let [body-str (util/bbuf->str body)]
+      (let [body-str (byte-streams/to-string body)]
         (if (< status 400)
           (if output-shape
             (shape/json-parse output-shape body-str)

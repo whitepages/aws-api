@@ -4,9 +4,8 @@
 (ns ^:skip-wiki cognitect.aws.ec2-metadata-utils
   "Impl, don't call directly"
   (:require [clojure.string :as str]
-            [clojure.data.json :as json]
+            [byte-streams :as byte-streams]
             [clojure.core.async :as a]
-            [cognitect.http-client :as http]
             [cognitect.aws.util :as u]
             [cognitect.aws.retry :as retry])
   (:import (java.net URI)))
@@ -44,49 +43,54 @@
 
 (defn- request-map
   [^URI uri]
-  {:scheme (.getScheme uri)
-   :server-name (.getHost uri)
-   :server-port (or (when (pos? (.getPort uri)) (.getPort uri)) (when (= (.getScheme uri) :https) 443) 80)
-   :uri (.getPath uri)
+  {:scheme         (.getScheme uri)
+   :server-name    (.getHost uri)
+   :server-port    (or (when (pos? (.getPort uri))
+                         (.getPort uri))
+                       (when (= (.getScheme uri) :https)
+                         443)
+                       80)
+   :uri            (.getPath uri)
    :request-method :get
-   :headers {:accept "*/*"}})
+   :headers        {:accept "*/*"}})
 
-(defn get-data [uri]
+(defn get-data [uri send-http]
   (let [response (a/<!! (retry/with-retry
-                          #(http/submit (http/create {}) (request-map (URI. uri)))
+                          #(send-http (request-map (URI. uri)) nil nil nil)
                           (a/promise-chan)
                           retry/default-retriable?
                           retry/default-backoff))]
     ;; TODO: handle unhappy paths -JS
     (when (= 200 (:status response))
-      (u/bbuf->str (:body response)))))
+      (-> response
+          :body
+          byte-streams/to-string))))
 
-(defn get-data-at-path [path]
-  (get-data (build-uri (get-host-address) path)))
+(defn get-data-at-path [path send-http]
+  (get-data (build-uri (get-host-address) path) send-http ))
 
-(defn get-listing [uri]
-  (some-> (get-data uri) str/split-lines))
+(defn get-listing [uri send-http]
+  (some-> (get-data uri send-http) str/split-lines))
 
-(defn get-listing-at-path [path]
-  (get-listing (build-uri (get-host-address) path)))
+(defn get-listing-at-path [path send-http]
+  (get-listing send-http (build-uri (get-host-address) path)))
 
-(defn get-ec2-instance-data []
+(defn get-ec2-instance-data [send-http]
   (some-> (build-path dynamic-data-root instance-identity-document)
-          get-data-at-path
-          (json/read-str :key-fn keyword)))
+          (get-data-at-path send-http)
+          (u/json->edn)))
 
-(defn get-ec2-instance-region
-  []
-  (:region (get-ec2-instance-data)))
+(defn get-ec2-instance-region [send-http]
+  (:region (get-ec2-instance-data send-http)))
 
-(defn container-credentials []
+(defn container-credentials [send-http]
   (let [endpoint (or (when-let [path (u/getenv container-credentials-relative-uri-env-var)]
                        (str (get-host-address) path))
                      (u/getenv container-credentials-full-uri-env-var))]
-    (some-> endpoint get-data (json/read-str :key-fn keyword))))
+    (some-> endpoint (get-data send-http) (u/json->edn))))
 
-(defn instance-credentials []
+(defn instance-credentials [send-http]
   (when (not (in-container?))
-    (when-let [cred-name (first (get-listing-at-path security-credentials-path))]
-      (some-> (get-data-at-path (str security-credentials-path cred-name))
-              (json/read-str :key-fn keyword)))))
+    (when-let [cred-name (first (get-listing-at-path security-credentials-path send-http))]
+      (some-> (get-data-at-path (str security-credentials-path cred-name) send-http)
+              (u/json->edn)))))

@@ -88,49 +88,6 @@
     (.init mac (SecretKeySpec. key "HmacSHA256"))
     (.doFinal mac (.getBytes data "UTF-8"))))
 
-(defn ^bytes input-stream->byte-array [is]
-  (let [os (ByteArrayOutputStream.)]
-    (io/copy is os)
-    (.toByteArray os)))
-
-(defn bbuf->bytes
-  [^ByteBuffer bbuf]
-  (when bbuf
-    (let [bytes (byte-array (.remaining bbuf))]
-      (.get (.duplicate bbuf) bytes)
-      bytes)))
-
-(defn bbuf->str
-  "Creates a string from java.nio.ByteBuffer object.
-   The encoding is fixed to UTF-8."
-  [^ByteBuffer bbuf]
-  (when-let [bytes (bbuf->bytes bbuf)]
-    (String. ^bytes bytes "UTF-8")))
-
-(defn bbuf->input-stream
-  [^ByteBuffer bbuf]
-  (when bbuf
-    (io/input-stream (bbuf->bytes bbuf))))
-
-(defprotocol BBuffable
-  (->bbuf [data]))
-
-(extend-protocol BBuffable
-  (class (byte-array 0))
-  (->bbuf [bs] (ByteBuffer/wrap bs))
-
-  String
-  (->bbuf [s] (->bbuf (.getBytes s "UTF-8")))
-
-  InputStream
-  (->bbuf [is] (->bbuf (input-stream->byte-array is)))
-
-  ByteBuffer
-  (->bbuf [bb] bb)
-
-  nil
-  (->bbuf [_]))
-
 (defn xml-read
   "Parse the UTF-8 XML string."
   [s]
@@ -194,11 +151,15 @@
                               (url-encode v)))
                        params))))
 
+(defn json->edn [s]
+  ;; TODO: jsonista
+  (json/read-str s :key-fn keyword))
+
 (defn read-json
   "Read readable as JSON. readable can be any valid input for
   clojure.java.io/reader."
   [readable]
-  (json/read-str (slurp readable) :key-fn keyword))
+  (-> readable slurp json->edn))
 
 (defn map-vals
   "Apply f to the values with the given keys, or all values if `ks` is not specified."
@@ -235,7 +196,7 @@
       base64-decode
       io/reader
       slurp
-      (json/read-str :key-fn keyword)))
+      json->edn))
 
 (def ^Charset UTF8 (Charset/forName "UTF-8"))
 

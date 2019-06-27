@@ -4,11 +4,11 @@
 (ns ^:skip-wiki cognitect.aws.signers
   "Impl, don't call directly."
   (:require [clojure.string :as str]
-            [cognitect.aws.client :as client]
-            [cognitect.aws.service :as service]
-            [cognitect.aws.util :as util])
-  (:import [java.net URI]
-           [java.net URLDecoder]))
+            [cognitect.aws
+             [client :as client]
+             [service :as service]
+             [util :as util]])
+  (:import [java.net URI URLDecoder]))
 
 (set! *warn-on-reflection* true)
 

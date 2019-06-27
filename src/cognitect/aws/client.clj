@@ -4,9 +4,10 @@
 (ns ^:skip-wiki cognitect.aws.client
   "Impl, don't call directly."
   (:require [clojure.core.async :as a]
-            [cognitect.aws.util :as util]
-            [cognitect.aws.interceptors :as interceptors]
-            [cognitect.aws.credentials :as credentials]))
+            [byte-streams :as byte-streams]
+            [cognitect.aws
+             [credentials :as credentials]
+             [interceptors :as interceptors]]))
 
 (set! *warn-on-reflection* true)
 
@@ -65,7 +66,7 @@
   (let [{:keys [service endpoint]} (-get-info client)]
     (-> (build-http-request service op-map)
         (with-endpoint endpoint)
-        (update :body util/->bbuf)
+        (update :body byte-streams/to-byte-buffer)
         ((partial interceptors/modify-http-request service op-map)))))
 
 (defn sign-http-request-with-client
@@ -83,9 +84,7 @@
       (let [req         (http-request client op-map)
             result-chan (a/chan 1 (map #(with-meta
                                           (handle-http-response service op-map %)
-                                          (assoc @result-meta
-                                                 :http-response
-                                                 (update % :body util/bbuf->input-stream)))))]
+                                          (assoc @result-meta :http-response (dissoc % :body)))))]
         (swap! result-meta assoc :http-request req)
         (send-http req client op-map result-chan)
         result-chan)

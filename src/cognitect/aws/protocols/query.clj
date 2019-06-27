@@ -109,8 +109,8 @@
       http-response
       (if (< status 400)
         (if-let [output-shape (service/shape service (:output operation))]
-          (shape/xml-parse output-shape (util/bbuf->str body))
-          (util/xml->map (util/xml-read (util/bbuf->str body))))
+          (shape/xml-parse output-shape (byte-streams/to-string body))
+          (util/xml->map (util/xml-read (byte-streams/to-string body))))
         (common/xml-parse-error http-response)))))
 
 (defmethod client/parse-http-response "query"

@@ -19,6 +19,17 @@
 
 (declare ops sign-http-request)
 
+(defn default-http-send [http-client]
+  (fn [req client op-map chan]
+    (let [signed-req (sign-http-request client req)]
+      (if (and client op-map chan)
+        (http/submit
+         http-client
+         (merge signed-req
+                (select-keys op-map [:cognitect.http-client/timeout-msec]))
+         chan)
+        (http/submit http-client signed-req)))))
+
 (defn client
   "Given a config map, create a client for specified api. Supported keys
   in config are:
@@ -44,10 +55,11 @@
                           future.
   :send-http            - optional, a user supplied function which takes a cognitect-http
                           flavored request map, the client, the op-map from `invoke`
-                          and a core.async channel where the function should put! the result on.
+                          and an optional arg for a core.async channel where the function should put! the result on.
                           Since the request can be modified before being sent with a client,
                           this function is responsible for signing the request with `sign-http-request`.
-                          The return value is ignored.
+                          The return value must be the a channel returning the result, if a channel was passed
+                          in it should be returned. Default impl found in `default-http-send`.
   :http-client          - optional, an `cognitect.http-client/Client` implementation
   :region-provider      - optional, implementation of `aws-clojure.region/RegionProvider`
                           protocol, defaults to `cognitect.aws.region/default-region-provider`
@@ -64,8 +76,7 @@
 
   Alpha. Subject to change."
   [{:keys [api region region-provider retriable? backoff http-client send-http credentials-provider endpoint-override]
-    :or   {endpoint-override {}}
-    :as   config}]
+    :or   {endpoint-override {}}}]
   (when (string? endpoint-override)
     (log/warn
      (format
@@ -75,6 +86,8 @@
         http-client (cond
                       http-client     http-client
                       (not send-http) (http/create {:trust-all true})) ;; FIX :trust-all
+        send-http*  (or send-http
+                        )
         region      (keyword
                      (or region
                          (region/fetch
@@ -93,15 +106,9 @@
                        (throw (ex-info "No known endpoint." {:service api :region region})))
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
-        :send-http   (or send-http
-                         (fn [req client op-map chan]
-                           (http/submit
-                            http-client
-                            (merge (sign-http-request client req)
-                                   (select-keys op-map [:cognitect.http-client/timeout-msec]))
-                            chan)))
+        :send-http   send-http*
         :http-client http-client
-        :credentials (or credentials-provider @credentials/global-provider)})
+        :credentials (or credentials-provider (credentials/global-provider send-http*))})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
                                             client/-get-info

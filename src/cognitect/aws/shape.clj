@@ -18,7 +18,8 @@
   "
   (:refer-clojure :exclude [resolve])
   (:require [clojure.data.json :as json]
-            [cognitect.aws.util :as util]))
+            [cognitect.aws.util :as util]
+            [cognitect.aws.util :as u]))
 
 ;; ----------------------------------------------------------------------------------------
 ;; Helpers to navigate shapes
@@ -195,7 +196,9 @@
 (defn json-parse
   "Parse the JSON string to return an instance of the shape."
   [shape s]
-  (json-parse* shape (json/read-str s :key-fn keyword)))
+  (->> s
+       (util/json->edn)
+       (json-parse* shape)))
 
 (defn json-serialize
   "Serialize the shape's instance into a JSON string."

@@ -4,6 +4,7 @@
 (ns ^:skip-wiki cognitect.aws.protocols.common
   "Impl, don't call directly. "
   (:require [clojure.data.json :as json]
+            [byte-streams :as byte-streams]
             [cognitect.aws.util :as util]))
 
 (def status-codes->anomalies
@@ -25,8 +26,8 @@
 
 (defn xml-parse-error
   [{:keys [body] :as http-response}]
-  (parse-error* http-response (some-> body util/bbuf->str util/xml-read util/xml->map)))
+  (parse-error* http-response (some-> body byte-streams/to-string util/xml-read util/xml->map)))
 
 (defn json-parse-error
   [{:keys [body] :as http-response}]
-  (parse-error* http-response (some-> body util/bbuf->str (json/read-str :key-fn keyword))))
+  (parse-error* http-response (some-> body byte-streams/to-string util/json->edn)))

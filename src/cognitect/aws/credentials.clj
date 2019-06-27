@@ -264,11 +264,11 @@
   is set.
 
   Alpha. Subject to change."
-  []
+  [send-http]
   (auto-refreshing-credentials
    (reify CredentialsProvider
      (fetch [_]
-       (when-let [creds (ec2/instance-credentials)]
+       (when-let [creds (ec2/instance-credentials send-http)]
          (valid-credentials
           {:aws/access-key-id     (:AccessKeyId creds)
            :aws/secret-access-key (:SecretAccessKey creds)
@@ -286,15 +286,16 @@
     instance-profile-credentials-provider
 
   Alpha. Subject to change."
-  []
+  [send-http]
   (chain-credentials-provider
    [(environment-credentials-provider)
     (system-property-credentials-provider)
     (profile-credentials-provider)
     (container-credentials-provider)
-    (instance-profile-credentials-provider)]))
+    (instance-profile-credentials-provider send-http)]))
 
-(def global-provider (delay (default-credentials-provider)))
+(def global-provider
+  (memoize #(default-credentials-provider %)))
 
 (defn basic-credentials-provider
   "Given a map with :access-key-id and :secret-access-key,
