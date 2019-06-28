@@ -73,15 +73,10 @@
   byte-array, an input-stream, or nil, in which case returns the
   sha-256 of the empty string."
   [data]
-  (cond (string? data)
-        (sha-256 (.getBytes ^String data "UTF-8"))
-        (instance? ByteBuffer data)
-        (sha-256 (.array ^ByteBuffer data))
-        :else
-        (let [digest (MessageDigest/getInstance "SHA-256")]
-          (when data
-            (.update digest ^bytes data))
-          (.digest digest))))
+  (let [digest (MessageDigest/getInstance "SHA-256")]
+    (when data
+      (.update digest ^bytes (byte-streams/to-byte-array data)))
+    (.digest digest)))
 
 (defn hmac-sha-256
   [key ^String data]
