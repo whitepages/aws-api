@@ -67,13 +67,13 @@
           byte-streams/to-string))))
 
 (defn get-data-at-path [path send-http]
-  (get-data (build-uri (get-host-address) path) send-http ))
+  (get-data (build-uri (get-host-address) path) send-http))
 
 (defn get-listing [uri send-http]
   (some-> (get-data uri send-http) str/split-lines))
 
 (defn get-listing-at-path [path send-http]
-  (get-listing send-http (build-uri (get-host-address) path)))
+  (get-listing (build-uri (get-host-address) path) send-http))
 
 (defn get-ec2-instance-data [send-http]
   (some-> (build-path dynamic-data-root instance-identity-document)
