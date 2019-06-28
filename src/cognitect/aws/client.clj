@@ -44,7 +44,7 @@
       {:cognitect.anomalies/category anomaly-category
        ::throwable                   (:cognitect.http-client/throwable http-response)}
       (parse-http-response service op-map http-response))
-    (catch Throwable
+    (catch Throwable t
       {:cognitect.anomalies/category :cognitect.anomalies/fault
        ::throwable                   t})))
 
