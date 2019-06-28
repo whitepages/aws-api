@@ -56,7 +56,7 @@
 
 (defn get-data [uri send-http]
   (let [response (a/<!! (retry/with-retry
-                          #(send-http (request-map (URI. uri)) nil nil nil)
+                          #(send-http (request-map (URI. uri)) nil nil)
                           (a/promise-chan)
                           retry/default-retriable?
                           retry/default-backoff))]

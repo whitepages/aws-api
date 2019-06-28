@@ -213,9 +213,9 @@
 
 ;; TODO: ResponseMetadata in root
 (defn xml-parse
-  "Parse the XML string and return an instance of the shape."
-  [shape s]
-  (let [root (util/xml-read s)]
+  "Parse the XML byte sequence and return an instance of the shape."
+  [shape x]
+  (let [root (util/xml-read x)]
     (if (:resultWrapper shape)
       (xml-parse* shape (:content root))
       (xml-parse* shape [root]))))
@@ -255,7 +255,7 @@
   (reduce-kv (fn [node k v]
                (if (and (not (nil? v)) (contains? (:members shape) k))
                  (let [member-shape (member-shape shape k)
-                       member-name (get member-shape :locationName (name k))]
+                       member-name  (get member-shape :locationName (name k))]
                    (if (:xmlAttribute member-shape)
                      (assoc-in node [:attrs member-name] v)
                      (let [member (xml-serialize* member-shape v member-name)]
@@ -263,10 +263,10 @@
                                (if (vector? member) concat conj) ; to support flattened list
                                member))))
                  node))
-             {:tag el-name
-              :attrs (if-let [{:keys [prefix uri]} (:xmlNamespace shape)]
-                       {(str "xmlns" (when prefix (str ":" prefix))) uri}
-                       {})
+             {:tag     el-name
+              :attrs   (if-let [{:keys [prefix uri]} (:xmlNamespace shape)]
+                         {(str "xmlns" (when prefix (str ":" prefix))) uri}
+                         {})
               :content []}
              args))
 
@@ -275,19 +275,19 @@
   (let [member-shape (list-member-shape shape)]
     (if (:flattened shape)
       (mapv #(xml-serialize* member-shape % el-name) args)
-      (let [member-name (get member-shape :locationName"member")]
-        {:tag el-name
+      (let [member-name (get member-shape :locationName "member")]
+        {:tag     el-name
          :content (mapv #(xml-serialize* member-shape % member-name) args)}))))
 
 (defmethod xml-serialize* "map"
   [shape args el-name]
-  (let [key-shape (key-shape shape)
-        key-name (get key-shape :locationName "key")
+  (let [key-shape   (key-shape shape)
+        key-name    (get key-shape :locationName "key")
         value-shape (value-shape shape)
-        value-name (get value-shape :locationName "value")]
-    {:tag el-name
+        value-name  (get value-shape :locationName "value")]
+    {:tag     el-name
      :content (reduce-kv (fn [serialized k v]
-                           (conj serialized {:tag "entry"
+                           (conj serialized {:tag     "entry"
                                              :content [(xml-serialize* key-shape (name k) key-name)
                                                        (xml-serialize* value-shape v value-name)]}))
                          []
@@ -353,13 +353,13 @@
 
 (defmethod xml-parse* "map"
   [shape nodes]
-  (let [key-shape (key-shape shape)
-        key-name (get key-shape :locationName "key")
+  (let [key-shape   (key-shape shape)
+        key-name    (get key-shape :locationName "key")
         value-shape (value-shape shape)
-        value-name (get value-shape :locationName "value")
-        entries (if (:flattened shape)
-                  nodes
-                  (:content (first nodes)))]
+        value-name  (get value-shape :locationName "value")
+        entries     (if (:flattened shape)
+                      nodes
+                      (:content (first nodes)))]
     (reduce (fn [parsed entry]
               (let [tag->children (group-by :tag (:content entry))]
                 (assoc parsed
@@ -383,10 +383,10 @@
 (defmethod xml-parse* "list"
   [shape nodes]
   (let [member-shape (list-member-shape shape)
-        member-name (get member-shape :locationName "member")
-        members (if (:flattened shape)
-                  nodes
-                  (:content (first nodes)))]
+        member-name  (get member-shape :locationName "member")
+        members      (if (:flattened shape)
+                       nodes
+                       (:content (first nodes)))]
     (mapv #(xml-parse* member-shape [%])
           members)))
 

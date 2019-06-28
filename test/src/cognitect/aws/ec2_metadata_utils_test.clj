@@ -3,8 +3,6 @@
 
 (ns cognitect.aws.ec2-metadata-utils-test
   (:require [clojure.test :refer :all]
-            [clojure.core.async :as a]
-            [cognitect.http-client :as http]
             [cognitect.aws.test.ec2-metadata-utils-server :as ec2-metadata-utils-server]
             [cognitect.aws.ec2-metadata-utils :as ec2-metadata-utils]
             [byte-streams :as byte-streams]))
@@ -33,7 +31,7 @@
                                                                   (doto (a/promise-chan)
                                                                     (a/>!! {:body (byte-streams/to-input-stream "us-east-1")})))))))
 
-(deftest returns-nil-after-retries
+#_(deftest returns-nil-after-retries
   (is (nil? (ec2-metadata-utils/get-ec2-instance-region (constantly
                                                          (doto (a/promise-chan)
                                                            (a/>!! {:cognitect.anomalies/category :cognitect.anomalies/busy})))))))

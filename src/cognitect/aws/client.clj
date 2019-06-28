@@ -42,11 +42,11 @@
   (try
     (if-let [anomaly-category (:cognitect.anomaly/category http-response)]
       {:cognitect.anomalies/category anomaly-category
-       ::throwable (:cognitect.http-client/throwable http-response)}
+       ::throwable                   (:cognitect.http-client/throwable http-response)}
       (parse-http-response service op-map http-response))
-    (catch Throwable t
+    (catch Throwable
       {:cognitect.anomalies/category :cognitect.anomalies/fault
-       ::throwable t})))
+       ::throwable                   t})))
 
 (defn ^:private with-endpoint [req {:keys [protocol
                                            hostname
@@ -66,7 +66,7 @@
   (let [{:keys [service endpoint]} (-get-info client)]
     (-> (build-http-request service op-map)
         (with-endpoint endpoint)
-        (update :body byte-streams/to-byte-buffer)
+        (update :body #(some-> % byte-streams/to-byte-buffer))
         ((partial interceptors/modify-http-request service op-map)))))
 
 (defn sign-http-request-with-client
@@ -77,21 +77,21 @@
 
 (defn send-request
   "Send the request to AWS and return a channel which delivers the response."
-  [client op-map]
+  [client {:keys [with-meta?]
+           :or   {with-meta? true}
+           :as   op-map}]
   (let [{:keys [service send-http]} (-get-info client)
         result-meta                 (atom {})]
     (try
       (let [req         (http-request client op-map)
-            result-chan (a/chan 1 (map #(with-meta
-                                          (handle-http-response service op-map %)
-                                          (assoc @result-meta :http-response (dissoc % :body)))))]
+            result-chan (a/chan 1 (map #(cond-> (handle-http-response service op-map %)
+                                          with-meta? (with-meta (assoc @result-meta :http-response (dissoc % :body))))))]
         (swap! result-meta assoc :http-request req)
         (send-http req client op-map result-chan)
         result-chan)
       (catch Throwable t
         (let [err-ch (a/chan 1)]
-          (a/put! err-ch (with-meta
-                           {:cognitect.anomalies/category :cognitect.anomalies/fault
-                            ::throwable                   t}
-                           @result-meta))
+          (a/put! err-ch (cond-> {:cognitect.anomalies/category :cognitect.anomalies/fault
+                                  ::throwable                   t}
+                           with-meta? (with-meta @result-meta)))
           err-ch)))))

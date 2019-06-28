@@ -103,14 +103,14 @@
   (build-query-http-request serialize service req-map))
 
 (defn build-query-http-response
-  [service {:keys [op] :as op-map} {:keys [status body] :as http-response}]
+  [service {:keys [op]} {:keys [status body] :as http-response}]
   (let [operation (get-in service [:operations op])]
     (if (:cognitect.anomalies/category http-response)
       http-response
       (if (< status 400)
         (if-let [output-shape (service/shape service (:output operation))]
-          (shape/xml-parse output-shape (byte-streams/to-string body))
-          (util/xml->map (util/xml-read (byte-streams/to-string body))))
+          (shape/xml-parse output-shape body)
+          (-> body util/xml-read util/xml->map))
         (common/xml-parse-error http-response)))))
 
 (defmethod client/parse-http-response "query"

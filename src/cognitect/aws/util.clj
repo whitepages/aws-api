@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [clojure.data.xml :as xml]
             [clojure.data.json :as json]
+            [byte-streams :as byte-streams]
             [clojure.java.io :as io])
   (:import [java.text SimpleDateFormat]
            [java.util Date TimeZone]
@@ -90,9 +91,10 @@
 
 (defn xml-read
   "Parse the UTF-8 XML string."
-  [s]
-  (xml/parse (ByteArrayInputStream. (.getBytes ^String s "UTF-8"))
-             :namespace-aware false))
+  [x]
+  (-> x
+      (byte-streams/to-string)
+      (xml/parse-str :namespace-aware false :skip-whitespace true)))
 
 (defn xml->map [element]
   (cond

@@ -15,20 +15,23 @@
             [cognitect.aws.region :as region]
             [cognitect.aws.client.api.async :as api.async]
             [cognitect.aws.signers] ;; implements multimethods
-            [cognitect.aws.util :as util]))
+            [cognitect.aws.util :as util]
+            [clojure.core.async :as async]))
 
 (declare ops sign-http-request)
 
+;; TODO: extract this to a protocol
 (defn default-http-send [http-client]
-  (fn [req client op-map chan]
-    (let [signed-req (sign-http-request client req)]
-      (if (and client op-map chan)
-        (http/submit
-         http-client
-         (merge signed-req
-                (select-keys op-map [:cognitect.http-client/timeout-msec]))
-         chan)
-        (http/submit http-client signed-req)))))
+  (fn send-http
+    ([req client op-map]
+     (send-http req client op-map (async/promise-chan)))
+    ([req client op-map chan]
+     (http/submit
+      http-client
+      (merge (cond->> req
+               client (sign-http-request client))
+             (select-keys op-map [:cognitect.http-client/timeout-msec]))
+      chan))))
 
 (defn client
   "Given a config map, create a client for specified api. Supported keys
