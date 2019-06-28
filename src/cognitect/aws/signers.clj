@@ -98,9 +98,10 @@
 
 (defn hashed-body
   [request]
-  (util/hex-encode (util/sha-256 (:body request))))
-
-[(vec (util/sha-256 "")) (vec (util/sha-256 nil))]
+  (-> request
+      :body
+      util/sha-256
+      util/hex-encode))
 
 (defn canonical-request
   [{:keys [headers] :as request}]
