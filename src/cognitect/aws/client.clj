@@ -80,8 +80,11 @@
   [client {:keys [with-meta?]
            :or   {with-meta? true}
            :as   op-map}]
-  (let [{:keys [service send-http]} (-get-info client)
-        result-meta                 (atom {})]
+  (let [{:keys [service]
+         :as   client-info} (-get-info client)
+        result-meta         (atom {})
+        send-http           (or (:send-http client-info)
+                                (:send-http op-map))]
     (try
       (let [req         (http-request client op-map)
             result-chan (a/chan 1 (map #(cond-> (handle-http-response service op-map %)
