@@ -83,8 +83,8 @@
   (let [{:keys [service]
          :as   client-info} (-get-info client)
         result-meta         (atom {})
-        send-http           (or (:send-http client-info)
-                                (:send-http op-map))]
+        send-http           (or (:send-http op-map)
+                                (:send-http client-info))]
     (try
       (let [req         (http-request client op-map)
             result-chan (a/chan 1 (map #(cond-> (handle-http-response service op-map %)
