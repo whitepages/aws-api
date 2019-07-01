@@ -5,8 +5,7 @@
   "Contains credentials providers and helpers for discovering credentials.
 
   Alpha. Subject to change."
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
             [cognitect.aws.util :as u]
@@ -243,11 +242,11 @@
   AWS_CONTAINER_CREDENTIALS_FULL_URI is set.
 
   Alpha. Subject to change."
-  []
+  [send-http]
   (auto-refreshing-credentials
    (reify CredentialsProvider
      (fetch [_]
-       (when-let [creds (ec2/container-credentials)]
+       (when-let [creds (ec2/container-credentials send-http)]
          (valid-credentials
           {:aws/access-key-id     (:AccessKeyId creds)
            :aws/secret-access-key (:SecretAccessKey creds)
@@ -291,7 +290,7 @@
    [(environment-credentials-provider)
     (system-property-credentials-provider)
     (profile-credentials-provider)
-    (container-credentials-provider)
+    (container-credentials-provider send-http)
     (instance-profile-credentials-provider send-http)]))
 
 (def global-provider
