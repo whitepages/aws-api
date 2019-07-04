@@ -89,8 +89,6 @@
         http-client (cond
                       http-client     http-client
                       (not send-http) (http/create {:trust-all true})) ;; FIX :trust-all
-        send-http*  (or send-http
-                        )
         region      (keyword
                      (or region
                          (region/fetch
@@ -109,9 +107,9 @@
                        (throw (ex-info "No known endpoint." {:service api :region region})))
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
-        :send-http   send-http*
+        :send-http   send-http
         :http-client http-client
-        :credentials (or credentials-provider (credentials/global-provider send-http*))})
+        :credentials (or credentials-provider (credentials/global-provider send-http))})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
                                             client/-get-info
