@@ -5,7 +5,7 @@
   "Impl, don't call directly."
   (:require [clojure.string :as str]
             [clojure.data.xml :as xml]
-            [clojure.data.json :as json]
+            [jsonista.core :as json]
             [byte-streams :as byte-streams]
             [clojure.java.io :as io])
   (:import [java.text SimpleDateFormat]
@@ -148,15 +148,17 @@
                               (url-encode v)))
                        params))))
 
-(defn json->edn [s]
-  ;; TODO: jsonista
-  (json/read-str s :key-fn keyword))
+(def json-object-mapper
+  (json/object-mapper {:decode-key-fn true}))
+
+(defn json->edn [obj]
+  (json/read-value obj json-object-mapper))
 
 (defn read-json
   "Read readable as JSON. readable can be any valid input for
   clojure.java.io/reader."
   [readable]
-  (-> readable slurp json->edn))
+  (-> readable json->edn))
 
 (defn map-vals
   "Apply f to the values with the given keys, or all values if `ks` is not specified."
@@ -186,13 +188,12 @@
   (io/input-stream (.decode (Base64/getDecoder) ^String s)))
 
 (defn encode-jsonvalue [data]
-  (base64-encode (.getBytes ^String (json/write-str data))))
+  (base64-encode (json/write-value-as-bytes data)))
 
 (defn parse-jsonvalue [data]
   (-> data
       base64-decode
       io/reader
-      slurp
       json->edn))
 
 (def ^Charset UTF8 (Charset/forName "UTF-8"))

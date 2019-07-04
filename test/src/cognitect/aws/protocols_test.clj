@@ -419,7 +419,7 @@
   ([protocol input-or-output]
    (let [filepath       (str "botocore/protocols/" input-or-output "/" protocol ".json")
          extra-filepath (str "cognitect/protocols/" input-or-output "/" protocol ".json")]
-     (doseq [test (into (-> filepath io/resource slurp u/json->edn)
+     (doseq [test (into (-> filepath io/resource u/json->edn)
                         (when (io/resource extra-filepath)
                           (-> extra-filepath io/resource u/read-json)))]
        (testing (str input-or-output " of " protocol " : " (:description test))

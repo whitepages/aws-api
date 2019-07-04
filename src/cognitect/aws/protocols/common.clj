@@ -29,4 +29,4 @@
 
 (defn json-parse-error
   [{:keys [body] :as http-response}]
-  (parse-error* http-response (some-> body byte-streams/to-string util/json->edn)))
+  (parse-error* http-response (some-> body util/json->edn)))
