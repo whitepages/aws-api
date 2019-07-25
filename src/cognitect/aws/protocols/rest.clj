@@ -11,8 +11,7 @@
             [cognitect.aws.protocols.common :as common]
             [cognitect.aws.service :as service]
             [cognitect.aws.client :as client]
-            [cognitect.aws.shape :as shape])
-  (:import [java.util Date]))
+            [cognitect.aws.shape :as shape]))
 
 ;; ----------------------------------------------------------------------------------------
 ;; Serializer

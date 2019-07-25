@@ -7,6 +7,8 @@
             [byte-streams :as byte-streams]
             [cognitect.aws
              [credentials :as credentials]
+             [http :as http]
+             [util :as util]
              [interceptors :as interceptors]]))
 
 (set! *warn-on-reflection* true)
@@ -37,6 +39,7 @@
   (fn [service region credentials http-request]
     (get-in service [:metadata :signatureVersion])))
 
+;; TODO convey throwable back from impl
 (defn ^:private handle-http-response
   [service op-map http-response]
   (try

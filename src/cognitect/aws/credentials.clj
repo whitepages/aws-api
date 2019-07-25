@@ -237,16 +237,18 @@
     3600))
 
 (defn container-credentials-provider
-  "Return credentials from ECS iff one of
+  "For internal use. Do not call directly.
+
+  Return credentials from ECS iff one of
   AWS_CONTAINER_CREDENTIALS_RELATIVE_URI or
   AWS_CONTAINER_CREDENTIALS_FULL_URI is set.
 
   Alpha. Subject to change."
-  [send-http]
+  [client-or-send-http]
   (auto-refreshing-credentials
    (reify CredentialsProvider
      (fetch [_]
-       (when-let [creds (ec2/container-credentials send-http)]
+       (when-let [creds (ec2/container-credentials client-or-send-http)]
          (valid-credentials
           {:aws/access-key-id     (:AccessKeyId creds)
            :aws/secret-access-key (:SecretAccessKey creds)
@@ -263,11 +265,11 @@
   is set.
 
   Alpha. Subject to change."
-  [send-http]
+  [client-or-send-http]
   (auto-refreshing-credentials
    (reify CredentialsProvider
      (fetch [_]
-       (when-let [creds (ec2/instance-credentials send-http)]
+       (when-let [creds (ec2/instance-credentials client-or-send-http])]
          (valid-credentials
           {:aws/access-key-id     (:AccessKeyId creds)
            :aws/secret-access-key (:SecretAccessKey creds)
@@ -285,13 +287,13 @@
     instance-profile-credentials-provider
 
   Alpha. Subject to change."
-  [send-http]
+  [client-or-send-http]
   (chain-credentials-provider
    [(environment-credentials-provider)
     (system-property-credentials-provider)
     (profile-credentials-provider)
-    (container-credentials-provider send-http)
-    (instance-profile-credentials-provider send-http)]))
+    (container-credentials-provider client-or-send-http)
+    (instance-profile-credentials-provider client-or-send-http)]))
 
 (def global-provider
   (memoize #(default-credentials-provider %)))

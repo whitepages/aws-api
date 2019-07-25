@@ -6,11 +6,11 @@
   (:require [clojure.core.async :as a]
             [clojure.tools.logging :as log]
             [clojure.string :as str]
-            [cognitect.http-client :as http]
             [cognitect.aws.client :as client]
             [cognitect.aws.retry :as retry]
             [cognitect.aws.credentials :as credentials]
             [cognitect.aws.endpoint :as endpoint]
+            [cognitect.aws.http :as http]
             [cognitect.aws.service :as service]
             [cognitect.aws.region :as region]
             [cognitect.aws.client.api.async :as api.async]
@@ -34,8 +34,8 @@
       chan))))
 
 (defn client
-  "Given a config map, create a client for specified api. Supported keys
-  in config are:
+  "Given a config map, create a client for specified api. Supported keys:
+
   :api                  - required, this or api-descriptor required, the name of the api
                           you want to interact with e.g. :s3, :cloudformation, etc
   :region               - optional, the aws region serving the API endpoints you
@@ -79,7 +79,8 @@
 
   Alpha. Subject to change."
   [{:keys [api region region-provider retriable? backoff http-client send-http credentials-provider endpoint-override]
-    :or   {endpoint-override {}}}]
+    :or   {endpoint-override {}}
+    :as config}]
   (when (string? endpoint-override)
     (log/warn
      (format
@@ -88,7 +89,7 @@
   (let [service     (service/service-description (name api))
         http-client (cond
                       http-client     http-client
-                      (not send-http) (http/create {:trust-all true})) ;; FIX :trust-all
+                      (not send-http) (http/resolve-http-client http-client))
         region      (keyword
                      (or region
                          (region/fetch
@@ -109,7 +110,7 @@
         :backoff     (or backoff retry/default-backoff)
         :send-http   send-http
         :http-client http-client
-        :credentials (or credentials-provider (credentials/global-provider send-http))})
+        :credentials (or credentials-provider (credentials/global-provider (or send-http http-client)))})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
                                             client/-get-info
@@ -117,6 +118,11 @@
                                             (update :endpoint select-keys [:hostname :protocols :signatureVersions])
                                             (update :service select-keys [:metadata])
                                             (assoc :ops (ops c))))})))
+
+(defn default-http-client
+  "Create an http-client to share across multiple aws-api clients."
+  []
+  (http/resolve-http-client nil))
 
 (defn invoke
   "Package and send a request to AWS and return the result.
@@ -235,7 +241,11 @@
                (str "No docs for " (name operation)))))
 
 (defn stop
-  "Shuts down the http-client, releasing resources.
+  "Shuts down the underlying http-client, releasing resources.
+
+  NOTE: if you're sharing an http-client across aws-api clients,
+  this will shut down the shared client for all aws-api clients
+  that are using it.
 
   Alpha. Subject to change."
   [client]
