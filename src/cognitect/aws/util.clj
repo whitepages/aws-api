@@ -5,7 +5,8 @@
   "Impl, don't call directly."
   (:require [clojure.string :as str]
             [clojure.data.xml :as xml]
-            [clojure.data.json :as json]
+            [jsonista.core :as json]
+            [byte-streams :as byte-streams]
             [clojure.java.io :as io])
   (:import [java.text SimpleDateFormat]
            [java.util Date TimeZone]
@@ -72,15 +73,10 @@
   byte-array, an input-stream, or nil, in which case returns the
   sha-256 of the empty string."
   [data]
-  (cond (string? data)
-        (sha-256 (.getBytes ^String data "UTF-8"))
-        (instance? ByteBuffer data)
-        (sha-256 (.array ^ByteBuffer data))
-        :else
-        (let [digest (MessageDigest/getInstance "SHA-256")]
-          (when data
-            (.update digest ^bytes data))
-          (.digest digest))))
+  (let [digest (MessageDigest/getInstance "SHA-256")]
+    (when data
+      (.update digest ^bytes (byte-streams/to-byte-array data)))
+    (.digest digest)))
 
 (defn hmac-sha-256
   [key ^String data]
@@ -88,55 +84,12 @@
     (.init mac (SecretKeySpec. key "HmacSHA256"))
     (.doFinal mac (.getBytes data "UTF-8"))))
 
-(defn ^bytes input-stream->byte-array [is]
-  (let [os (ByteArrayOutputStream.)]
-    (io/copy is os)
-    (.toByteArray os)))
-
-(defn bbuf->bytes
-  [^ByteBuffer bbuf]
-  (when bbuf
-    (let [bytes (byte-array (.remaining bbuf))]
-      (.get (.duplicate bbuf) bytes)
-      bytes)))
-
-(defn bbuf->str
-  "Creates a string from java.nio.ByteBuffer object.
-   The encoding is fixed to UTF-8."
-  [^ByteBuffer bbuf]
-  (when-let [bytes (bbuf->bytes bbuf)]
-    (String. ^bytes bytes "UTF-8")))
-
-(defn bbuf->input-stream
-  [^ByteBuffer bbuf]
-  (when bbuf
-    (io/input-stream (bbuf->bytes bbuf))))
-
-(defprotocol BBuffable
-  (->bbuf [data]))
-
-(extend-protocol BBuffable
-  (class (byte-array 0))
-  (->bbuf [bs] (ByteBuffer/wrap bs))
-
-  String
-  (->bbuf [s] (->bbuf (.getBytes s "UTF-8")))
-
-  InputStream
-  (->bbuf [is] (->bbuf (input-stream->byte-array is)))
-
-  ByteBuffer
-  (->bbuf [bb] bb)
-
-  nil
-  (->bbuf [_]))
-
 (defn xml-read
   "Parse the UTF-8 XML string."
-  [s]
-  (xml/parse (ByteArrayInputStream. (.getBytes ^String s "UTF-8"))
-             :namespace-aware false
-             :skip-whitespace true))
+  [x]
+  (-> x
+      (byte-streams/to-string)
+      (xml/parse-str :namespace-aware false :skip-whitespace true)))
 
 (defn xml->map [element]
   (cond
@@ -194,11 +147,17 @@
                               (url-encode v)))
                        params))))
 
+(def json-object-mapper
+  (json/object-mapper {:decode-key-fn true}))
+
+(defn json->edn [obj]
+  (json/read-value obj json-object-mapper))
+
 (defn read-json
   "Read readable as JSON. readable can be any valid input for
   clojure.java.io/reader."
   [readable]
-  (json/read-str (slurp readable) :key-fn keyword))
+  (-> readable json->edn))
 
 (defn map-vals
   "Apply f to the values with the given keys, or all values if `ks` is not specified."
@@ -228,14 +187,13 @@
   (io/input-stream (.decode (Base64/getDecoder) ^String s)))
 
 (defn encode-jsonvalue [data]
-  (base64-encode (.getBytes ^String (json/write-str data))))
+  (base64-encode (json/write-value-as-bytes data)))
 
 (defn parse-jsonvalue [data]
   (-> data
       base64-decode
       io/reader
-      slurp
-      (json/read-str :key-fn keyword)))
+      json->edn))
 
 (def ^Charset UTF8 (Charset/forName "UTF-8"))
 

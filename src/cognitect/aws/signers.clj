@@ -4,11 +4,11 @@
 (ns ^:skip-wiki cognitect.aws.signers
   "Impl, don't call directly."
   (:require [clojure.string :as str]
-            [cognitect.aws.client :as client]
-            [cognitect.aws.service :as service]
-            [cognitect.aws.util :as util])
-  (:import [java.net URI]
-           [java.net URLDecoder]))
+            [cognitect.aws
+             [client :as client]
+             [service :as service]
+             [util :as util]])
+  (:import [java.net URI URLDecoder]))
 
 (set! *warn-on-reflection* true)
 
@@ -98,10 +98,13 @@
 
 (defn hashed-body
   [request]
-  (util/hex-encode (util/sha-256 (:body request))))
+  (-> request
+      :body
+      util/sha-256
+      util/hex-encode))
 
 (defn canonical-request
-  [{:keys [headers body content-length] :as request}]
+  [{:keys [headers] :as request}]
   (str/join "\n" [(canonical-method request)
                   (canonical-uri request)
                   (canonical-query-string request)

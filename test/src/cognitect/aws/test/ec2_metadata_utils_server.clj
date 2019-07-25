@@ -3,14 +3,13 @@
 
 (ns cognitect.aws.test.ec2-metadata-utils-server
   "Modeled after com.amazonaws.util.EC2MetadataUtilsServer"
-  (:require [clojure.string :as str]
-            [cognitect.aws.ec2-metadata-utils :as ec2-metadata-utils]
+  (:require [cognitect.aws.ec2-metadata-utils :as ec2-metadata-utils]
             [cognitect.aws.util :as u]
             [org.httpkit.server :as http-server]
-            [clojure.data.json :as json]));
+            [jsonista.core :as json]));
 
 (def iam-info
-  (json/write-str
+  (json/write-value-as-string
     {"Code" "Success"
      "LastUpdated" "2014-04-07T08 18 41Z"
      "InstanceProfileArn" "foobar"
@@ -21,7 +20,7 @@
   "test1\ntest2")
 
 (def iam-cred
-  (json/write-str
+  (json/write-value-as-string
     {"Code"  "Success"
      "LastUpdated" "2014-04-07T08:18:41Z"
      "Type" "AWS-HMAC"
@@ -31,7 +30,7 @@
      "Expiration" "2014-04-08T23:16:53Z"}))
 
 (def instance-info
-  (json/write-str
+  (json/write-value-as-string
     {"pendingTime" "2014-08-07T22:07:46Z"
      "instanceType" "m1.small"
      "imageId" "ami-a49665cc"

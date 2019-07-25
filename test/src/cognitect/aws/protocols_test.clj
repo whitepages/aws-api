@@ -3,21 +3,22 @@
 
 (ns cognitect.aws.protocols-test
   "Test the protocols implementations."
-  (:require [clojure.string :as str]
-            [clojure.test :refer :all]
+  (:require [byte-streams :as byte-streams]
+            [clojure
+             [string :as str]
+             [test :refer :all]]
             [clojure.java.io :as io]
-            [clojure.data.json :as json]
-            [clojure.walk :as walk]
             [clojure.spec.alpha :as s]
             [clojure.spec.test.alpha :as stest]
-            [cognitect.aws.util :as util]
-            [cognitect.aws.client :as client]
+            [cognitect.aws
+             [client :as client]
+             [util :as u]]
             [cognitect.aws.protocols.json]
             [cognitect.aws.protocols.rest-json]
             [cognitect.aws.protocols.rest-xml]
             [cognitect.aws.protocols.query]
             [cognitect.aws.protocols.ec2])
-  (:import (java.util Date)))
+  (:import java.util.Date))
 
 (s/fdef cognitect.aws.util/query-string
   :args (s/cat :params (s/or :seq (s/coll-of (s/cat :key (s/or :kw simple-keyword? :str string?)
@@ -335,8 +336,8 @@
 
 (defmethod test-request-body "json"
   [_ expected http-request]
-  (is (= (some-> expected json/read-str)
-         (some-> http-request :body json/read-str))))
+  (is (= (some-> expected u/read-json)
+         (some-> http-request :body u/read-json))))
 
 (defmethod test-request-body "rest-xml"
   [_ expected {:keys [body]}]
@@ -352,9 +353,9 @@
   (let [body-str (some-> http-request :body)]
     (if (str/blank? expected)
       (is (nil? body-str))
-      (if-let [expected-json (try (json/read-str expected)
+      (if-let [expected-json (try (u/read-json expected)
                                   (catch Throwable t))]
-        (is (= expected-json (json/read-str body-str)))
+        (is (= expected-json (u/read-json body-str)))
         ;; streaming, no JSON payload, we compare strings directly
         (is (= expected body-str))))))
 
@@ -403,7 +404,7 @@
                                                                              (assoc m (name k) v))
                                                                            {}
                                                                            (:headers response))
-                                                       :body    (util/->bbuf (:body response))})]
+                                                       :body    (byte-streams/to-byte-buffer (:body response))})]
       (when-let [anomaly (:cognitect.anomalies/category parsed-response)]
         (throw (or (::client/throwable parsed-response)
                    (ex-info "Client Error." parsed-response))))
@@ -422,9 +423,9 @@
   ([protocol input-or-output]
    (let [filepath       (str "botocore/protocols/" input-or-output "/" protocol ".json")
          extra-filepath (str "cognitect/protocols/" input-or-output "/" protocol ".json")]
-     (doseq [test (into (-> filepath io/resource slurp (json/read-str :key-fn keyword))
+     (doseq [test (into (-> filepath io/resource u/read-json)
                         (when (io/resource extra-filepath)
-                          (-> extra-filepath io/resource slurp (json/read-str :key-fn keyword))))]
+                          (-> extra-filepath io/resource u/read-json)))]
        (testing (str input-or-output " of " protocol " : " (:description test))
          (doseq [{:keys [given] :as test-case} (:cases test)
                  :let                          [service (assoc (select-keys test [:metadata :shapes])
@@ -432,7 +433,7 @@
            (run-test input-or-output protocol (:description test) service test-case)))))))
 
 (deftest test-protocols
-  (with-redefs [util/uuid-string (constantly "00000000-0000-4000-8000-000000000000")]
+  (with-redefs [u/uuid-string (constantly "00000000-0000-4000-8000-000000000000")]
     (doseq [protocol ["ec2"
                       "query"
                       "json"

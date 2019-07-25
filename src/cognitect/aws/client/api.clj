@@ -15,9 +15,23 @@
             [cognitect.aws.region :as region]
             [cognitect.aws.client.api.async :as api.async]
             [cognitect.aws.signers] ;; implements multimethods
-            [cognitect.aws.util :as util]))
+            [cognitect.aws.util :as util]
+            [clojure.core.async :as async]))
 
-(declare ops)
+(declare ops sign-http-request)
+
+;; TODO: extract this to a protocol
+(defn default-http-send [http-client]
+  (fn send-http
+    ([req client op-map]
+     (send-http req client op-map (async/promise-chan)))
+    ([req client op-map chan]
+     (http/submit
+      http-client
+      (merge (cond->> req
+               client (sign-http-request client))
+             (select-keys op-map [:cognitect.http-client/timeout-msec]))
+      chan))))
 
 (defn client
   "Given a config map, create a client for specified api. Supported keys:
@@ -26,15 +40,11 @@
                           you want to interact with e.g. :s3, :cloudformation, etc
   :region               - optional, the aws region serving the API endpoints you
                           want to interact with, defaults to region provided by
-                          by the default region provider (see cognitect.aws.region)
+                          by the default region provider (see `cognitect.aws.region`)
   :credentials-provider - optional, implementation of
-                          cognitect.aws.credentials/CredentialsProvider
+                          `cognitect.aws.credentials/CredentialsProvider`
                           protocol, defaults to
-                          cognitect.aws.credentials/default-credentials-provider
-  :region-provider      - optional, implementation of aws-clojure.region/RegionProvider
-                          protocol, defaults to cognitect.aws.region/default-region-provider
-  :http-client          - optional, to share http-clients across aws-clients.
-                          See default-http-client.
+                          `cognitect.aws.credentials/default-credentials-provider`
   :endpoint-override    - optional, map to override parts of the endpoint. Supported keys:
                             :protocol     - :http or :https
                             :hostname     - string
@@ -46,35 +56,45 @@
                           Also supports a string representing just the hostname, though
                           support for a string is deprectated and may be removed in the
                           future.
-  :retriable?           - optional, fn of http-response (see cognitect.aws.http/submit).
+  :send-http            - optional, a user supplied function which takes a cognitect-http
+                          flavored request map, the client, the op-map from `invoke`
+                          and an optional arg for a core.async channel where the function should put! the result on.
+                          Since the request can be modified before being sent with a client,
+                          this function is responsible for signing the request with `sign-http-request`.
+                          The return value must be the a channel returning the result, if a channel was passed
+                          in it should be returned. Default impl found in `default-http-send`.
+  :http-client          - optional, an `cognitect.http-client/Client` implementation
+  :region-provider      - optional, implementation of `aws-clojure.region/RegionProvider`
+                          protocol, defaults to `cognitect.aws.region/default-region-provider`
+  :retriable?           - optional, fn of http-response (see `cognitect.http-client/submit`).
                           Should return a boolean telling the client whether or
                           not the request is retriable.  The default,
-                          cognitect.aws.retry/default-retriable?, returns
+                          `cognitect.aws.retry/default-retriable?`, returns
                           true when the response indicates that the service is
                           busy or unavailable.
   :backoff              - optional, fn of number of retries so far. Should return
                           number of milliseconds to wait before the next retry
                           (if the request is retriable?), or nil if it should stop.
-                          Defaults to cognitect.aws.retry/default-backoff.
+                          Defaults to `cognitect.aws.retry/default-backoff`.
 
   Alpha. Subject to change."
-  [{:keys [api region region-provider retriable? backoff credentials-provider endpoint endpoint-override
-           http-client]
-    :or {endpoint-override {}}
+  [{:keys [api region region-provider retriable? backoff http-client send-http credentials-provider endpoint-override]
+    :or   {endpoint-override {}}
     :as config}]
   (when (string? endpoint-override)
     (log/warn
      (format
       "DEPRECATION NOTICE: :endpoint-override string is deprecated.\nUse {:endpoint-override {:hostname \"%s\"}} instead."
       endpoint-override)))
-  (let [service   (service/service-description (name api))
-        http-client (http/resolve-http-client http-client)
-        region    (keyword
-                   (or region
-                       (region/fetch
-                        (or region-provider
-                            (region/default-region-provider http-client)))))]
-
+  (let [service     (service/service-description (name api))
+        http-client (cond
+                      http-client     http-client
+                      (not send-http) (http/resolve-http-client http-client))
+        region      (keyword
+                     (or region
+                         (region/fetch
+                          (or region-provider
+                              (region/default-region-provider)))))]
     (require (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
     (with-meta
       (client/->Client
@@ -88,12 +108,13 @@
                        (throw (ex-info "No known endpoint." {:service api :region region})))
         :retriable?  (or retriable? retry/default-retriable?)
         :backoff     (or backoff retry/default-backoff)
+        :send-http   send-http
         :http-client http-client
-        :credentials (or credentials-provider (credentials/default-credentials-provider http-client))})
+        :credentials (or credentials-provider (credentials/global-provider (or send-http http-client)))})
       {'clojure.core.protocols/datafy (fn [c]
                                         (-> c
                                             client/-get-info
-                                            (select-keys [:region :endpoint :service])
+                                            (select-keys [:region :endpoint :service :send-http])
                                             (update :endpoint select-keys [:hostname :protocols :signatureVersions])
                                             (update :service select-keys [:metadata])
                                             (assoc :ops (ops c))))})))
@@ -121,6 +142,21 @@
   Alpha. Subject to change."
   [client op-map]
   (a/<!! (api.async/invoke client op-map)))
+
+(defn http-request
+  "Returns a request map that once signed via `sign-http-request`
+  can be sent to AWS with `cognitect.http-client/submit`.
+
+  Alpha. Subject to change."
+  [client op-map]
+  (client/http-request client op-map))
+
+(defn sign-http-request
+  "Signs request so it can be sent to
+
+  Alpha. Subject to change."
+  [client request]
+  (client/sign-http-request-with-client client request))
 
 (defn validate-requests
   "Given true, uses clojure.spec to validate all invoke calls on client.
@@ -157,10 +193,10 @@
 
   Alpha. Subject to change."
   [client]
-  (->> client
-       client/-get-info
-       :service
-       service/docs))
+  (-> client
+      client/-get-info
+      :service
+      service/docs))
 
 (defn doc-str
   "Given data produced by `ops`, returns a string
@@ -213,5 +249,7 @@
 
   Alpha. Subject to change."
   [client]
-  (let [{:keys [http-client credentials]} (client/-get-info client)]
-    (http/-stop http-client)))
+  (some-> client
+          client/-get-info
+          :http-client
+          http/stop))

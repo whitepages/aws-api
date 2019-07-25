@@ -4,7 +4,6 @@
 (ns ^:skip-wiki cognitect.aws.protocols.rest-json
   "Impl, don't call directly."
   (:require [clojure.string :as str]
-            [clojure.data.json :as json]
             [cognitect.aws.client :as client]
             [cognitect.aws.shape :as shape]
             [cognitect.aws.util :as util]
@@ -41,7 +40,7 @@
 (defmethod parser "application/hal+json" [_]
   (fn [shape body-str]
     (when-not (str/blank? body-str)
-      (let [data (json/read-str body-str :key-fn keyword)]
+      (let [data (util/json->edn body-str)]
         (->> (into (dissoc data :_embedded :_links)
                    (some->> (get data :_embedded)
                             (reduce-kv (fn [m k v]

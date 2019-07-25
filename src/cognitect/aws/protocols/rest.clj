@@ -7,10 +7,12 @@
   Common feature across the rest protocols (rest-json, rest-xml). "
   (:require [clojure.string :as str]
             [cognitect.aws.util :as util]
+            [byte-streams :as byte-streams]
             [cognitect.aws.protocols.common :as common]
             [cognitect.aws.service :as service]
             [cognitect.aws.client :as client]
-            [cognitect.aws.shape :as shape]))
+            [cognitect.aws.shape :as shape])
+  (:import java.util.Date))
 
 ;; ----------------------------------------------------------------------------------------
 ;; Serializer
@@ -157,7 +159,7 @@
              (util/with-defaults shape args)))
 
 (defn build-http-request
-  [{:keys [shapes operations metadata] :as service} {:keys [op request] :as op-map} serialize-body-args]
+  [{:keys [operations] :as service} {:keys [op request]} serialize-body-args]
   (let [operation        (get operations op)
         input-shape-name (-> operation :input :shape)
         input-shape      (service/shape service (:input operation))
@@ -165,7 +167,7 @@
                           :scheme         :https
                           :server-port    443
                           :uri            (get-in operation [:http :requestUri])
-                          :headers        (common/headers service operation)}]
+                          :headers        {"x-amz-date" (util/format-date util/x-amz-date-format (Date.))}}]
     (if-not input-shape
       http-request
       (let [location->args (partition-args input-shape request)
@@ -236,13 +238,14 @@
   "Parse the HTTP response body for response data."
   [output-shape body parse-fn]
   (if-let [payload-name (:payload output-shape)]
-    (let [body-shape (shape/member-shape output-shape (keyword payload-name))]
+    (let [payload-kw (keyword payload-name)
+          body-shape (shape/member-shape output-shape payload-kw)]
       (condp = (:type body-shape)
-        "blob" {(keyword payload-name) (util/bbuf->input-stream body)}
-        "string" (util/bbuf->str body)
-        {(keyword payload-name) (parse-fn body-shape (util/bbuf->str body))}))
+        "blob"   {payload-kw (byte-streams/to-input-stream body)}
+        "string" (byte-streams/to-string body)
+        {payload-kw (parse-fn body-shape (byte-streams/to-string body))}))
     ;; No payload
-    (let [body-str (util/bbuf->str body)]
+    (let [body-str (byte-streams/to-string body)]
       (when-not (str/blank? body-str)
         (parse-fn output-shape body-str)))))
 

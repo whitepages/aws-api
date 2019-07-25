@@ -144,7 +144,7 @@
         },
         "serialized": {
           "method": "POST",
-          "body": "<OperationRequest xmlns=\"https://foo/\"><First>true</First><Second>false</Second><Third>1.2</Third><Fourth>3</Fourth></OperationRequest>",
+          "body": "<OperationRequest xmlns=\"https://foo/\"><Fourth>3</Fourth><Third>1.2</Third><First>true</First><Second>false</Second></OperationRequest>",
           "uri": "/2014-01-01/hostedzone",
           "headers": {}
         }
@@ -207,7 +207,7 @@
         },
         "serialized": {
           "method": "POST",
-          "body": "<OperationRequest xmlns=\"https://foo/\"><SubStructure><Foo>a</Foo><Bar>b</Bar></SubStructure><Description>baz</Description></OperationRequest>",
+          "body": "<OperationRequest xmlns=\"https://foo/\"><Description>baz</Description><SubStructure><Bar>b</Bar><Foo>a</Foo></SubStructure></OperationRequest>",
           "uri": "/2014-01-01/hostedzone",
           "headers": {}
         }
@@ -234,7 +234,7 @@
         },
         "serialized": {
           "method": "POST",
-          "body": "<OperationRequest xmlns=\"https://foo/\"><SubStructure><Foo>a</Foo></SubStructure><Description>baz</Description></OperationRequest>",
+          "body": "<OperationRequest xmlns=\"https://foo/\"><Description>baz</Description><SubStructure><Foo>a</Foo></SubStructure></OperationRequest>",
           "uri": "/2014-01-01/hostedzone",
           "headers": {}
         }
@@ -294,7 +294,7 @@
         },
         "serialized": {
           "method": "POST",
-          "body": "<OperationRequest xmlns=\"https://foo/\"><SubStructure /><Description>baz</Description></OperationRequest>",
+          "body": "<OperationRequest xmlns=\"https://foo/\"><Description>baz</Description><SubStructure /></OperationRequest>",
           "uri": "/2014-01-01/hostedzone",
           "headers": {}
         }
@@ -923,7 +923,7 @@
         },
         "serialized": {
           "body": "",
-          "uri": "/2014-01-01/jobsByPipeline/foo?bar=baz&fizz=buzz",
+          "uri": "/2014-01-01/jobsByPipeline/foo?fizz=buzz&bar=baz",
           "headers": {}
         }
       }
@@ -989,7 +989,7 @@
         },
         "serialized": {
           "body": "",
-          "uri": "/2014-01-01/jobsByPipeline/id?foo=bar&foo=baz&fizz=buzz&fizz=pop",
+          "uri": "/2014-01-01/jobsByPipeline/id?fizz=buzz&fizz=pop&foo=bar&foo=baz",
           "headers": {}
         }
       }
@@ -1678,7 +1678,7 @@
         },
         "serialized": {
           "uri": "/path",
-          "body": "<OperationRequest xmlns=\"https://foo/\"><RecursiveStruct><RecursiveMap><entry><key>foo</key><value><NoRecurse>foo</NoRecurse></value></entry><entry><key>bar</key><value><NoRecurse>bar</NoRecurse></value></entry></RecursiveMap></RecursiveStruct></OperationRequest>"
+          "body": "<OperationRequest xmlns=\"https://foo/\"><RecursiveStruct><RecursiveMap><entry><key>bar</key><value><NoRecurse>bar</NoRecurse></value></entry><entry><key>foo</key><value><NoRecurse>foo</NoRecurse></value></entry></RecursiveMap></RecursiveStruct></OperationRequest>"
         }
       }
     ]

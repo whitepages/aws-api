@@ -214,7 +214,7 @@
         },
         "serialized": {
           "body": "",
-          "uri": "/2014-01-01/jobsByPipeline/foo?bar=baz&fizz=buzz",
+          "uri": "/2014-01-01/jobsByPipeline/foo?fizz=buzz&bar=baz",
           "headers": {}
         }
       }
@@ -280,7 +280,7 @@
         },
         "serialized": {
           "body": "",
-          "uri": "/2014-01-01/jobsByPipeline/id?foo=bar&foo=baz&fizz=buzz&fizz=pop",
+          "uri": "/2014-01-01/jobsByPipeline/id?fizz=buzz&fizz=pop&foo=bar&foo=baz",
           "headers": {}
         }
       }
@@ -400,7 +400,7 @@
         },
         "serialized": {
           "body": "",
-          "uri": "/2014-01-01/jobsByPipeline/foo?Ascending=true&PageToken=bar",
+          "uri": "/2014-01-01/jobsByPipeline/foo?PageToken=bar&Ascending=true",
           "headers": {}
         }
       }
@@ -474,7 +474,7 @@
         },
         "serialized": {
           "body": "{\"Config\": {\"A\": \"one\", \"B\": \"two\"}}",
-          "uri": "/2014-01-01/jobsByPipeline/foo?Ascending=true&PageToken=bar",
+          "uri": "/2014-01-01/jobsByPipeline/foo?PageToken=bar&Ascending=true",
           "headers": {}
         }
       }
@@ -554,7 +554,7 @@
         },
         "serialized": {
           "body": "{\"Config\": {\"A\": \"one\", \"B\": \"two\"}}",
-          "uri": "/2014-01-01/jobsByPipeline/foo?Ascending=true&PageToken=bar",
+          "uri": "/2014-01-01/jobsByPipeline/foo?PageToken=bar&Ascending=true",
           "headers": {
             "x-amz-checksum": "12345"
           }

@@ -4,10 +4,12 @@
 (ns ^:skip-wiki cognitect.aws.client
   "Impl, don't call directly."
   (:require [clojure.core.async :as a]
-            [cognitect.aws.http :as http]
-            [cognitect.aws.util :as util]
-            [cognitect.aws.interceptors :as interceptors]
-            [cognitect.aws.credentials :as credentials]))
+            [byte-streams :as byte-streams]
+            [cognitect.aws
+             [credentials :as credentials]
+             [http :as http]
+             [util :as util]
+             [interceptors :as interceptors]]))
 
 (set! *warn-on-reflection* true)
 
@@ -43,11 +45,11 @@
   (try
     (if-let [anomaly-category (:cognitect.anomaly/category http-response)]
       {:cognitect.anomalies/category anomaly-category
-       ::throwable (::http/throwable http-response)}
+       ::throwable                   (:cognitect.http-client/throwable http-response)}
       (parse-http-response service op-map http-response))
     (catch Throwable t
       {:cognitect.anomalies/category :cognitect.anomalies/fault
-       ::throwable t})))
+       ::throwable                   t})))
 
 (defn ^:private with-endpoint [req {:keys [protocol
                                            hostname
@@ -61,29 +63,41 @@
     port     (assoc :server-port port)
     path     (assoc :uri path)))
 
+(defn http-request
+  "Creates a Ring request map that needs to be signed before being sent by `cognitect.http-client/submit`."
+  [client op-map]
+  (let [{:keys [service endpoint]} (-get-info client)]
+    (-> (build-http-request service op-map)
+        (with-endpoint endpoint)
+        (update :body #(some-> % byte-streams/to-byte-buffer))
+        ((partial interceptors/modify-http-request service op-map)))))
+
+(defn sign-http-request-with-client
+  "Signs a request with a client and a request returned by `http-request`."
+  [client request]
+  (let [{:keys [service region credentials]} (-get-info client)]
+    (sign-http-request service region (credentials/fetch credentials) request)))
+
 (defn send-request
   "Send the request to AWS and return a channel which delivers the response."
-  [client op-map]
-  (let [result-meta (atom {})]
+  [client {:keys [with-meta?]
+           :or   {with-meta? true}
+           :as   op-map}]
+  (let [{:keys [service]
+         :as   client-info} (-get-info client)
+        result-meta         (atom {})
+        send-http           (or (:send-http op-map)
+                                (:send-http client-info))]
     (try
-      (let [{:keys [service region credentials endpoint http-client]} (-get-info client)
-            http-request (sign-http-request service region (credentials/fetch credentials)
-                                            (-> (build-http-request service op-map)
-                                                (with-endpoint endpoint)
-                                                (update :body util/->bbuf)
-                                                ((partial interceptors/modify-http-request service op-map))))]
-        (swap! result-meta assoc :http-request http-request)
-        (http/submit http-client
-                     http-request
-                     (a/chan 1 (map #(with-meta
-                                       (handle-http-response service op-map %)
-                                       (assoc @result-meta
-                                              :http-response
-                                              (update % :body util/bbuf->input-stream)))))))
+      (let [req         (http-request client op-map)
+            result-chan (a/chan 1 (map #(cond-> (handle-http-response service op-map %)
+                                          with-meta? (with-meta (assoc @result-meta :http-response (dissoc % :body))))))]
+        (swap! result-meta assoc :http-request req)
+        (send-http req client op-map result-chan)
+        result-chan)
       (catch Throwable t
         (let [err-ch (a/chan 1)]
-          (a/put! err-ch (with-meta
-                           {:cognitect.anomalies/category :cognitect.anomalies/fault
-                            ::throwable                   t}
-                           @result-meta))
+          (a/put! err-ch (cond-> {:cognitect.anomalies/category :cognitect.anomalies/fault
+                                  ::throwable                   t}
+                           with-meta? (with-meta @result-meta)))
           err-ch)))))
