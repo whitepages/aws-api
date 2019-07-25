@@ -7,13 +7,17 @@
             [clojure
              [string :as str]
              [test :refer :all]]
-            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.spec.test.alpha :as stest]
             [cognitect.aws
              [client :as client]
-             [util :as u]])
+             [util :as u]]
+            [cognitect.aws.protocols.json]
+            [cognitect.aws.protocols.rest-json]
+            [cognitect.aws.protocols.rest-xml]
+            [cognitect.aws.protocols.query]
+            [cognitect.aws.protocols.ec2])
   (:import java.util.Date))
 
 (s/fdef cognitect.aws.util/query-string
@@ -332,8 +336,8 @@
 
 (defmethod test-request-body "json"
   [_ expected http-request]
-  (is (= (some-> expected json/read-str)
-         (some-> http-request :body json/read-str))))
+  (is (= (some-> expected u/read-json)
+         (some-> http-request :body u/read-json))))
 
 (defmethod test-request-body "rest-xml"
   [_ expected {:keys [body]}]
@@ -349,9 +353,9 @@
   (let [body-str (some-> http-request :body)]
     (if (str/blank? expected)
       (is (nil? body-str))
-      (if-let [expected-json (try (json/read-str expected)
+      (if-let [expected-json (try (u/read-json expected)
                                   (catch Throwable t))]
-        (is (= expected-json (json/read-str body-str)))
+        (is (= expected-json (u/read-json body-str)))
         ;; streaming, no JSON payload, we compare strings directly
         (is (= expected body-str))))))
 
@@ -419,7 +423,7 @@
   ([protocol input-or-output]
    (let [filepath       (str "botocore/protocols/" input-or-output "/" protocol ".json")
          extra-filepath (str "cognitect/protocols/" input-or-output "/" protocol ".json")]
-     (doseq [test (into (-> filepath io/resource u/json->edn)
+     (doseq [test (into (-> filepath io/resource u/read-json)
                         (when (io/resource extra-filepath)
                           (-> extra-filepath io/resource u/read-json)))]
        (testing (str input-or-output " of " protocol " : " (:description test))

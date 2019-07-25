@@ -44,7 +44,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&Foo=val1&Bar=val2"
+          "body": "Action=OperationName&Version=2014-01-01&Bar=val2&Foo=val1"
         }
       },
       {
@@ -337,7 +337,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&MapArg.1.key=key1&MapArg.1.value=val1&MapArg.2.key=key2&MapArg.2.value=val2"
+          "body": "Action=OperationName&Version=2014-01-01&MapArg.1.key=key2&MapArg.1.value=val2&MapArg.2.key=key1&MapArg.2.value=val1"
         }
       }
     ]
@@ -496,7 +496,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&MapArg.entry.1.key=key1&MapArg.entry.1.value=val1&MapArg.entry.2.key=key2&MapArg.entry.2.value=val2"
+          "body": "Action=OperationName&Version=2014-01-01&MapArg.entry.1.key=key2&MapArg.entry.1.value=val2&MapArg.entry.2.key=key1&MapArg.entry.2.value=val1"
         }
       }
     ]
@@ -550,7 +550,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&MapArg.entry.1.TheKey=key1&MapArg.entry.1.TheValue=val1&MapArg.entry.2.TheKey=key2&MapArg.entry.2.TheValue=val2"
+          "body": "Action=OperationName&Version=2014-01-01&MapArg.entry.1.TheKey=key2&MapArg.entry.1.TheValue=val2&MapArg.entry.2.TheKey=key1&MapArg.entry.2.TheValue=val1"
         }
       }
     ]
@@ -643,7 +643,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&TimeArg=2015-01-25T08%3A00%3A00Z&TimeCustom=1422172800&TimeFormat=1422172800"
+          "body": "Action=OperationName&Version=2014-01-01&TimeCustom=1422172800&TimeArg=2015-01-25T08%3A00%3A00Z&TimeFormat=1422172800"
         }
       }
     ]
@@ -848,7 +848,7 @@
           "headers": {
               "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
           },
-          "body": "Action=OperationName&Version=2014-01-01&RecursiveStruct.RecursiveMap.entry.1.key=foo&RecursiveStruct.RecursiveMap.entry.1.value.NoRecurse=foo&RecursiveStruct.RecursiveMap.entry.2.key=bar&RecursiveStruct.RecursiveMap.entry.2.value.NoRecurse=bar"
+          "body": "Action=OperationName&Version=2014-01-01&RecursiveStruct.RecursiveMap.entry.1.key=bar&RecursiveStruct.RecursiveMap.entry.1.value.NoRecurse=bar&RecursiveStruct.RecursiveMap.entry.2.key=foo&RecursiveStruct.RecursiveMap.entry.2.value.NoRecurse=foo"
         }
       }
     ]

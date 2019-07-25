@@ -1,7 +1,7 @@
 ;; Copyright (c) Cognitect, Inc.
 ;; All rights reserved.
 
-(require '[clojure.data.json :as json]
+(require '[jsonista.core :as json]
          '[cognitect.aws.client.api :as aws]
          '[cognitect.aws.credentials :as credentials])
 
@@ -18,7 +18,7 @@
 (aws/invoke iam {:op      :CreateRole
                  :request {:RoleName "aws-api-example-role"
                            :AssumeRolePolicyDocument
-                           (json/json-str
+                           (json/write-value-as-string
                             {"Version"   "2012-10-17",
                              "Statement" [ {"Effect"    "Allow"
                                             "Principal" {"AWS" [(:Arn me)]}
@@ -30,7 +30,7 @@
 (aws/invoke iam {:op      :CreatePolicy
                  :request {:PolicyName "IAMGetMe"
                            :PolicyDocument
-                           (json/json-str
+                           (json/write-value-as-string
                             {"Version"   "2012-10-17",
                              "Statement" [ {"Effect"   "Allow"
                                             "Action"   ["iam:GetUser"]

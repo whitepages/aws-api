@@ -7,9 +7,10 @@
 
 (require '[clojure.core.async :as a]
          '[clojure.java.io :as io]
-         '[clojure.data.json :as json]
+         '[clojure.set :as set]
          '[cognitect.aws.client.api :as aws]
-         '[cognitect.aws.client.api.async :as aws.async])
+         '[cognitect.aws.client.api.async :as aws.async]
+         '[cognitect.aws.util :as util])
 
 ;; 0 Create a client to talk to DynamoDB
 (def ddb (aws/client {:api :dynamodb}))
@@ -98,19 +99,16 @@
 (let [;; The aws-supplied example data are all json. We can use them
       ;; as/is, but we need keys defined the input specs to be
       ;; keywords if we want to validate the structure first!
-      xform-specified-keys
-      (fn [k]
-        (get (reduce (fn [a v] (assoc a v (keyword v)))
-                     {}
-                     ["B" "BOOL" "BS" "Item" "L" "M" "N" "NS" "NULL" "PutRequest" "S" "SS"])
-             k
-             k))]
+      xform-specified-keys (reduce (fn [a v] (assoc a v (keyword v)))
+                                   {}
+                                   ["B" "BOOL" "BS" "Item" "L" "M" "N" "NS" "NULL" "PutRequest" "S" "SS"])]
   (->> ["Forum.json"
         "Reply.json"
         "Thread.json"]
        (map #(-> (io/file "examples" "resources" "dynamodb" %)
                  slurp
-                 (json/read-str :key-fn xform-specified-keys)))
+                 (util/json->edn)
+                 (set/rename-keys xform-specified-keys)))
        (map #(aws/invoke ddb {:op      :BatchWriteItem
                               :request {:RequestItems %}}))))
 

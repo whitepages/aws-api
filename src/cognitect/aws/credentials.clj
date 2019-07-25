@@ -269,7 +269,7 @@
   (auto-refreshing-credentials
    (reify CredentialsProvider
      (fetch [_]
-       (when-let [creds (ec2/instance-credentials client-or-send-http])]
+       (when-let [creds (ec2/instance-credentials client-or-send-http)]
          (valid-credentials
           {:aws/access-key-id     (:AccessKeyId creds)
            :aws/secret-access-key (:SecretAccessKey creds)

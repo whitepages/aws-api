@@ -3,9 +3,7 @@
 
 (ns ^:skip-wiki cognitect.aws.protocols.common
   "Impl, don't call directly. "
-  (:require [byte-streams :as byte-streams]
-            [clojure.data.json :as json]
-            [cognitect.aws.util :as util])
+  (:require [cognitect.aws.util :as util])
   (:import (java.util Date)))
 
 (def status-codes->anomalies

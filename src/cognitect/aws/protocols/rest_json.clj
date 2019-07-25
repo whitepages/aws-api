@@ -4,13 +4,11 @@
 (ns ^:skip-wiki cognitect.aws.protocols.rest-json
   "Impl, don't call directly."
   (:require [clojure.string :as str]
-            [clojure.data.json :as json]
             [cognitect.aws.client :as client]
             [cognitect.aws.shape :as shape]
             [cognitect.aws.util :as util]
             [cognitect.aws.protocols.common :as common]
-            [cognitect.aws.protocols.rest :as rest]
-            [cognitect.aws.util :as u]))
+            [cognitect.aws.protocols.rest :as rest]))
 
 (defmulti serialize
   (fn [_ shape data] (:type shape)))

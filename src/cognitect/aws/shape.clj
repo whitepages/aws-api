@@ -17,9 +17,8 @@
   and 3 composite shapes: structure, list, and map.
   "
   (:refer-clojure :exclude [resolve])
-  (:require [clojure.data.json :as json]
-            [cognitect.aws.util :as util]
-            [cognitect.aws.util :as u]))
+  (:require [cognitect.aws.util :as util]
+            [jsonista.core :as json]))
 
 ;; ----------------------------------------------------------------------------------------
 ;; Helpers to navigate shapes
@@ -203,7 +202,7 @@
 (defn json-serialize
   "Serialize the shape's instance into a JSON string."
   [shape instance]
-  (json/write-str (json-serialize* shape instance)))
+  (json/write-value-as-string (json-serialize* shape instance)))
 
 ;; ----------------------------------------------------------------------------------------
 ;; XML Parser & Serializer

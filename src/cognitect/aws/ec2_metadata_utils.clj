@@ -58,8 +58,8 @@
 (defn get-data [uri client-or-send-http]
   (let [response (a/<!! (retry/with-retry
                           (if (fn? client-or-send-http)
-                            #(send-http (request-map (URI. uri)) nil nil)
-                            #(http/submit http-client (request-map (URI. uri))))
+                            #(client-or-send-http (request-map (URI. uri)) nil nil)
+                            #(http/submit client-or-send-http (request-map (URI. uri))))
                           (a/promise-chan)
                           retry/default-retriable?
                           retry/default-backoff))]
