@@ -93,7 +93,7 @@
                      (or region
                          (region/fetch
                           (or region-provider
-                              (region/default-region-provider http-client)))))]
+                              (region/default-region-provider (or http-client send-http))))))]
     (require (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
     (with-meta
       (client/->Client
