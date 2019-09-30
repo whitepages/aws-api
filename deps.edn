@@ -2,14 +2,16 @@
 ;; All rights reserved.
 
 {:paths   ["src" "resources"]
- :deps    {org.clojure/clojure         {:mvn/version "1.10.1"}
-           org.clojure/core.async      {:mvn/version "0.4.490"}
-           org.clojure/tools.logging   {:mvn/version "0.4.0"}
-           commons-codec/commons-codec {:mvn/version "1.11"}
-           byte-streams                {:mvn/version "0.2.5-alpha2"}
-           metosin/jsonista            {:mvn/version "0.2.3"}
-           org.clojure/data.xml        {:mvn/version "0.2.0-alpha6"}
-           com.cognitect/http-client   {:mvn/version "0.1.99"}}
+ :deps    {org.clojure/clojure            {:mvn/version "1.10.1"}
+           org.clojure/core.async         {:mvn/version "0.4.490"}
+           org.clojure/tools.logging      {:mvn/version "0.4.0"}
+           commons-codec/commons-codec    {:mvn/version "1.11"}
+           byte-streams                   {:mvn/version "0.2.5-alpha2"}
+           metosin/jsonista               {:mvn/version "0.2.3"}
+           org.clojure/data.xml           {:mvn/version "0.2.0-alpha6"}
+           com.cognitect/http-client      {:mvn/version "0.1.99"}
+           ;NVD
+           org.eclipse.jetty/jetty-client {:mvn/version "9.4.20.v20190813"}}
  :aliases {:update-versions {:extra-paths ["build/src"]
                              :main-opts   ["-m" "cognitect.aws.release-updater"]}
            :project-dev     {:extra-paths ["dev/src" "dev/resources" "test/src" "test/resources"]
