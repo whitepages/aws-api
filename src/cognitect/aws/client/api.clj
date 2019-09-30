@@ -3,7 +3,7 @@
 
 (ns cognitect.aws.client.api
   "API functions for using a client to interact with AWS services."
-  (:require [clojure.core.async :as a]
+  (:require [clojure.core.async :as async]
             [clojure.tools.logging :as log]
             [clojure.string :as str]
             [cognitect.aws.client :as client]
@@ -140,7 +140,7 @@
 
   Alpha. Subject to change."
   [client op-map]
-  (a/<!! (api.async/invoke client op-map)))
+  (async/<!! (api.async/invoke client op-map)))
 
 (defn http-request
   "Returns a request map that once signed via `sign-http-request`
