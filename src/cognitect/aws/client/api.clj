@@ -15,8 +15,7 @@
             [cognitect.aws.region :as region]
             [cognitect.aws.client.api.async :as api.async]
             [cognitect.aws.signers] ;; implements multimethods
-            [cognitect.aws.util :as util]
-            [clojure.core.async :as async]))
+            [cognitect.aws.util :as util]))
 
 (declare ops sign-http-request)
 
@@ -94,7 +93,7 @@
                      (or region
                          (region/fetch
                           (or region-provider
-                              (region/default-region-provider)))))]
+                              (region/default-region-provider http-client)))))]
     (require (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
     (with-meta
       (client/->Client
