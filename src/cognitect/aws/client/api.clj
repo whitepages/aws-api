@@ -158,14 +158,14 @@
 
   Alpha. Subject to change."
   [client op-map]
-  (client/http-request client op-map))
+  (async/<!! (client/http-request client op-map)))
 
 (defn sign-http-request
   "Signs request so it can be sent to
 
   Alpha. Subject to change."
   [client request]
-  (client/sign-http-request-with-client client request))
+  (async/<!! (client/sign-http-request-with-client client request)))
 
 (defn validate-requests
   "Given true, uses clojure.spec to validate all invoke calls on client.
