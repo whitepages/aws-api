@@ -1,6 +1,70 @@
-# aws-api 0.8
+# aws-api
 
-### DEV
+## 0.8.484 / 2020-11-05
+
+* make date parsing more tolerant [#155](https://github.com/cognitect-labs/aws-api/issues/155)
+
+## 0.8.474 / 2020-08-15
+
+* fix bug decoding GetBucketPolicy response [#148](https://github.com/cognitect-labs/aws-api/issues/148)
+
+## 0.8.469 / 2020-07-10
+
+* fix bug parsing iso8601 dates with fractional seconds [#144](https://github.com/cognitect-labs/aws-api/issues/144)
+* fix memory leak when validating requests [#143](https://github.com/cognitect-labs/aws-api/issues/143)
+
+## 0.8.456 / 2020-03-27
+
+* upgrade to tools.logging-1.0.0, data.json-1.0.0, and core.async-1.0.567
+* let core.async manage the threadpool for fetching credentials and region
+  * fixes deadlock with concurrent credentials fetch [#137](https://github.com/cognitect-labs/aws-api/issues/137)
+
+## 0.8.445 / 2020-02-25
+
+* fix deadlock using composite credentials providers (e.g. assume role example) [#130](https://github.com/cognitect-labs/aws-api/issues/130)
+
+## 0.8.437 / 2020-02-14
+
+* fix issue with `invoke` hanging when no region or creds are found [#124](https://github.com/cognitect-labs/aws-api/issues/124)
+
+## 0.8.430 / 2020-02-10
+
+* upgrade to com.cognitect/http-client 0.1.104 [#115](https://github.com/cognitect-labs/aws-api/issues/115)
+* all aws clients use shared http-client, credentials-provider, and region-provider by default
+  * addresses [#109](https://github.com/cognitect-labs/aws-api/issues/109)
+  * first call to invoke takes hit of fetching region and credentials
+* `com.cognitect.aws.api/stop` will not stop the shared http-client, but stop any other instance
+
+See [Upgrade Notes](https://github.com/cognitect-labs/aws-api/blob/master/UPGRADE.md) for more
+information about upgrading to this version.
+
+## 0.8.423 / 2020-01-17
+
+* Remove dep on commons-codec [#113](https://github.com/cognitect-labs/aws-api/issues/113)
+* Convey anomaly from http-client as/is [#114](https://github.com/cognitect-labs/aws-api/issues/114)
+
+## 0.8.408 / 2019-11-25
+
+* Reduce noise from reflection warnings in java 9+ [#106](https://github.com/cognitect-labs/aws-api/issues/106)
+* Get signing region from endpoint config [#105](https://github.com/cognitect-labs/aws-api/issues/105)
+* Add documentationUrl when available [#108](https://github.com/cognitect-labs/aws-api/issues/108)
+
+## 0.8.391 / 2019-10-25
+
+* Fix: S3 HeadObject fails with large files [#97](https://github.com/cognitect-labs/aws-api/issues/97)
+  * This was fixed in cognitect/http-client 0.1.101
+* Fix concurrency 4 limit introduced in 0.8.383
+
+## ~~0.8.383 / 2019-10-24~~
+
+* Make http calls to fetch credentials async / non-blocking.
+
+## 0.8.378 / 2019-10-19
+
+* Include service full names in latest-releases.edn [#32](https://github.com/cognitect-labs/aws-api/issues/32)
+* Wrap dynamic require of protocol ns in locking form [#92](https://github.com/cognitect-labs/aws-api/issues/92)
+
+## 0.8.352 / 2019-07-26
 
 * Use custom dynaload for http-client [#88](https://github.com/cognitect-labs/aws-api/issues/88)
   * Restores compatibility with Clojure-1.9

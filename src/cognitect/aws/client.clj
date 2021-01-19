@@ -5,11 +5,12 @@
   "Impl, don't call directly."
   (:require [clojure.core.async :as a]
             [byte-streams :as byte-streams]
-            [cognitect.aws
-             [credentials :as credentials]
-             [http :as http]
-             [util :as util]
-             [interceptors :as interceptors]]))
+            [cognitect.aws.http :as http]
+            [cognitect.aws.util :as util]
+            [cognitect.aws.interceptors :as interceptors]
+            [cognitect.aws.endpoint :as endpoint]
+            [cognitect.aws.region :as region]
+            [cognitect.aws.credentials :as credentials]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,7 +37,7 @@
 
 (defmulti sign-http-request
   "Sign the HTTP request."
-  (fn [service region credentials http-request]
+  (fn [service endpoint credentials http-request]
     (get-in service [:metadata :signatureVersion])))
 
 ;; TODO convey throwable back from impl
@@ -79,25 +80,42 @@
     (sign-http-request service region (credentials/fetch credentials) request)))
 
 (defn send-request
-  "Send the request to AWS and return a channel which delivers the response."
+  "For internal use. Send the request to AWS and return a channel which delivers the response.
+
+  Alpha. Subject to change."
   [client {:keys [with-meta?]
-           :or   {with-meta? true}
-           :as   op-map}]
-  (let [{:keys [service]
-         :as   client-info} (-get-info client)
-        result-meta         (atom {})
-        send-http           (or (:send-http op-map)
-                                (:send-http client-info))]
-    (try
-      (let [req         (http-request client op-map)
-            result-chan (a/chan 1 (map #(cond-> (handle-http-response service op-map %)
-                                          with-meta? (with-meta (assoc @result-meta :http-response (dissoc % :body))))))]
-        (swap! result-meta assoc :http-request req)
-        (send-http req client op-map result-chan)
-        result-chan)
-      (catch Throwable t
-        (let [err-ch (a/chan 1)]
-          (a/put! err-ch (cond-> {:cognitect.anomalies/category :cognitect.anomalies/fault
-                                  ::throwable                   t}
-                           with-meta? (with-meta @result-meta)))
-          err-ch)))))
+           :or {with-meta? true}
+           :as op-map}]
+  (let [{:keys [service http-client region-provider credentials-provider endpoint-provider] :as client-info}
+        (-get-info client)
+        response-meta (atom {})
+        region-ch     (region/fetch-async region-provider)
+        creds-ch      (credentials/fetch-async credentials-provider)
+        result-ch     (a/promise-chan (map #(cond-> (handle-http-response service op-map %)
+                                              with-meta? (with-meta (assoc @response-meta :http-response (dissoc % :body))))))
+        send-http     (or (:send-http op-map)
+                          (:send-http client-info))]
+
+    (a/go
+      (let [region   (a/<! region-ch)
+            creds    (a/<! creds-ch)
+            endpoint (endpoint/fetch endpoint-provider region)]
+        (cond
+          (:cognitect.anomalies/category region)
+          (a/>! result-ch region)
+          (:cognitect.anomalies/category creds)
+          (a/>! result-ch creds)
+          (:cognitect.anomalies/category endpoint)
+          (a/>! result-ch endpoint)
+          :else
+          (try
+            (let [http-request (http-request client op-map)]
+              (swap! response-meta assoc :http-request http-request)
+              (send-http http-request http-client op-map result-ch)
+              result-ch)
+            (catch Throwable t
+              (let [err-ch (a/promise-chan)]
+                (a/put! err-ch (cond-> {:cognitect.anomalies/category :cognitect.anomalies/fault
+                                        ::throwable                   t}
+                                 with-meta? (with-meta (swap! response-meta assoc :op-map op-map))))
+                err-ch))))))))

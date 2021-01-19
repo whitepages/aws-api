@@ -6,10 +6,13 @@
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
+            [clojure.core.async :as a]
             [cognitect.aws.util :as u]
             [cognitect.aws.config :as config]
             [cognitect.aws.ec2-metadata-utils :as ec2])
-  (:import [java.io File]))
+  (:import (java.io File)))
+
+(set! *warn-on-reflection* true)
 
 (defn ^:skip-wiki valid-region
   "For internal use. Don't call directly.
@@ -25,9 +28,8 @@
 (defn chain-region-provider
   "Chain together multiple region providers.
 
-  Calls each provider in order until one return a non-nil result.
-
-  Returns nil if none of the providers return a region.
+  `fetch` calls each provider in order until one returns a non-nil result,
+  or returns nil.
 
   Alpha. Subject to change."
   [providers]
@@ -38,7 +40,7 @@
                           {:providers (map class providers)}))))))
 
 (defn environment-region-provider
-  "Return the region from the AWS_REGION env var, or nil if not present.
+  "Returns the region from the AWS_REGION env var, or nil if not present.
 
   Alpha. Subject to change."
   []
@@ -46,7 +48,7 @@
     (fetch [_] (valid-region (u/getenv "AWS_REGION")))))
 
 (defn system-property-region-provider
-  "Return the region from the aws.region system property, or nil if not present.
+  "Returns the region from the aws.region system property, or nil if not present.
 
   Alpha. Subject to change."
   []
@@ -54,7 +56,7 @@
     (fetch [_] (valid-region (u/getProperty "aws.region")))))
 
 (defn profile-region-provider
-  "Return the region in a AWS configuration profile.
+  "Returns the region from an AWS configuration profile.
 
   Arguments:
 
@@ -84,17 +86,19 @@
             (log/error t "Unable to fetch region from the AWS config file " (str f)))))))))
 
 (defn instance-region-provider
-  "Return the region from the ec2 instance's metadata service,
+  "Returns the region from the ec2 instance's metadata service,
   or nil if the service can not be found.
 
   Alpha. Subject to change."
   [http-client]
-  (reify RegionProvider
-    (fetch [_] (valid-region (ec2/get-ec2-instance-region http-client)))))
-
+  (let [cached-region (atom nil)]
+    (reify RegionProvider
+      (fetch [_]
+        (or @cached-region
+            (reset! cached-region (valid-region (ec2/get-ec2-instance-region http-client))))))))
 
 (defn default-region-provider
-  "Return a chain-region-provider comprising, in order:
+  "Returns a chain-region-provider with, in order:
 
     environment-region-provider
     system-property-region-provider
@@ -108,3 +112,11 @@
     (system-property-region-provider)
     (profile-region-provider)
     (instance-region-provider http-client)]))
+
+(defn fetch-async
+  "Returns a channel that will produce the result of calling fetch on
+  the provider.
+
+  Alpha. Subject to change."
+  [provider]
+  (u/fetch-async fetch provider "region"))

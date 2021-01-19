@@ -6,8 +6,10 @@
   (:require [clojure.core.async :as async]
             [clojure.tools.logging :as log]
             [clojure.string :as str]
+            [cognitect.aws.dynaload :as dynaload]
             [cognitect.aws.client :as client]
             [cognitect.aws.retry :as retry]
+            [cognitect.aws.client.shared :as shared]
             [cognitect.aws.credentials :as credentials]
             [cognitect.aws.endpoint :as endpoint]
             [cognitect.aws.http :as http]
@@ -37,9 +39,14 @@
 
   :api                  - required, this or api-descriptor required, the name of the api
                           you want to interact with e.g. :s3, :cloudformation, etc
+  :http-client          - optional, to share http-clients across aws-clients.
+                          See default-http-client.
+  :region-provider      - optional, implementation of aws-clojure.region/RegionProvider
+                          protocol, defaults to cognitect.aws.region/default-region-provider.
+                          Ignored if :region is also provided
   :region               - optional, the aws region serving the API endpoints you
                           want to interact with, defaults to region provided by
-                          by the default region provider (see `cognitect.aws.region`)
+                          by the region-provider
   :credentials-provider - optional, implementation of
                           `cognitect.aws.credentials/CredentialsProvider`
                           protocol, defaults to
@@ -76,6 +83,9 @@
                           (if the request is retriable?), or nil if it should stop.
                           Defaults to `cognitect.aws.retry/default-backoff`.
 
+  By default, all clients use shared http-client, credentials-provider, and
+  region-provider instances which use a small collection of daemon threads.
+
   Alpha. Subject to change."
   [{:keys [api region region-provider retriable? backoff http-client send-http credentials-provider endpoint-override]
     :or   {endpoint-override {}}
@@ -85,38 +95,38 @@
      (format
       "DEPRECATION NOTICE: :endpoint-override string is deprecated.\nUse {:endpoint-override {:hostname \"%s\"}} instead."
       endpoint-override)))
-  (let [service     (service/service-description (name api))
-        http-client (cond
-                      http-client     http-client
-                      (not send-http) (http/resolve-http-client http-client))
-        region      (keyword
-                     (or region
-                         (region/fetch
-                          (or region-provider
-                              (region/default-region-provider (or http-client send-http))))))]
-    (require (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
-    (with-meta
-      (client/->Client
-       (atom {})
-       {:service     service
-        :region      region
-        :endpoint    (if-let [ep (endpoint/resolve (-> service :metadata :endpointPrefix keyword) region)]
-                       (merge ep (if (string? endpoint-override)
-                                   {:hostname endpoint-override}
-                                   endpoint-override))
-                       (throw (ex-info "No known endpoint." {:service api :region region})))
-        :retriable?  (or retriable? retry/default-retriable?)
-        :backoff     (or backoff retry/default-backoff)
-        :send-http   send-http
-        :http-client http-client
-        :credentials (or credentials-provider (credentials/global-provider (or send-http http-client)))})
-      {'clojure.core.protocols/datafy (fn [c]
-                                        (-> c
-                                            client/-get-info
-                                            (select-keys [:region :endpoint :service :send-http])
-                                            (update :endpoint select-keys [:hostname :protocols :signatureVersions])
-                                            (update :service select-keys [:metadata])
-                                            (assoc :ops (ops c))))})))
+  (let [service              (service/service-description (name api))
+        http-client          (cond
+                               http-client     http-client
+                               (not send-http) (shared/http-client))
+        region-provider      (cond region          (reify region/RegionProvider (fetch [_] region))
+                                   region-provider region-provider
+                                   :else           (region/default-region-provider (or http-client send-http)))
+        credentials-provider (or credentials-provider (credentials/global-provider (or send-http http-client)))
+        endpoint-provider    (endpoint/default-endpoint-provider
+                              api
+                              (get-in service [:metadata :endpointPrefix])
+                              endpoint-override)]
+    (dynaload/load-ns (symbol (str "cognitect.aws.protocols." (get-in service [:metadata :protocol]))))
+    (client/->Client
+     (atom {'clojure.core.protocols/datafy (fn [c]
+                                             (let [i (client/-get-info c)]
+                                               (-> i
+                                                   (select-keys [:service])
+                                                   (assoc :region (-> i :region-provider region/fetch)
+                                                          :endpoint (-> i :endpoint-provider endpoint/fetch))
+                                                   (update :endpoint select-keys [:hostname :protocols :signatureVersions])
+                                                   (update :service select-keys [:metadata])
+                                                   (assoc :ops (ops c)))))})
+     {:service              service
+      :retriable?           (or retriable? retry/default-retriable?)
+      :backoff              (or backoff retry/default-backoff)
+      :http-client          http-client
+      :send-http            send-http
+      :endpoint-provider    endpoint-provider
+      :region-provider      region-provider
+      :credentials-provider credentials-provider
+      :validate-requests?   (atom nil)})))
 
 (defn default-http-client
   "Create an http-client to share across multiple aws-api clients."
@@ -180,7 +190,7 @@
   [client op]
   (service/response-spec-key (-> client client/-get-info :service) op))
 
-(def ^:private pprint-ref (delay (util/dynaload 'clojure.pprint/pprint)))
+(def ^:private pprint-ref (delay (dynaload/load-var 'clojure.pprint/pprint)))
 (defn ^:skip-wiki pprint
   "For internal use. Don't call directly."
   [& args]
@@ -202,13 +212,16 @@
   representation.
 
   Alpha. Subject to change."
-  [{:keys [documentation request required response refs] :as doc}]
+  [{:keys [documentation documentationUrl request required response refs] :as doc}]
   (when doc
     (str/join "\n"
               (cond-> ["-------------------------"
                        (:name doc)
                        ""
                        documentation]
+                documentationUrl
+                (into [""
+                       documentationUrl])
                 request
                 (into [""
                        "-------------------------"
@@ -240,15 +253,14 @@
                (str "No docs for " (name operation)))))
 
 (defn stop
-  "Shuts down the underlying http-client, releasing resources.
+  "Has no effect when the underlying http-client is the shared
+  instance.
 
-  NOTE: if you're sharing an http-client across aws-api clients,
-  this will shut down the shared client for all aws-api clients
-  that are using it.
+  If you explicitly provided any other instance of http-client, stops
+  it, releasing resources.
 
   Alpha. Subject to change."
-  [client]
-  (some-> client
-          client/-get-info
-          :http-client
-          http/stop))
+  [aws-client]
+  (let [{:keys [http-client]} (client/-get-info aws-client)]
+    (when-not (#'shared/shared-http-client? http-client)
+      (http/stop http-client))))
