@@ -14,6 +14,8 @@
             [cognitect.aws.shape :as shape])
   (:import java.util.Date))
 
+(set! *warn-on-reflection* true)
+
 ;; ----------------------------------------------------------------------------------------
 ;; Serializer
 ;; ----------------------------------------------------------------------------------------
@@ -27,13 +29,13 @@
   [uri-template {:keys [required] :as input-shape} args]
   (str/replace uri-template
                #"\{([^}]+)\}"
-               (fn [[_ param]]
+               (fn [[_ ^String param]]
                  (or (if (.endsWith param "+")
                        (some-> args
                                (get (keyword (.substring param 0 (dec (count param)))))
                                util/url-encode
-                               (.replace "%2F" "/")
-                               (.replace "%7E" "~")
+                               (str/replace "%2F" "/")
+                               (str/replace "%7E" "~")
                                remove-leading-slash)
                        (some-> args
                                (get (keyword param))
@@ -52,7 +54,7 @@
 
 (defn append-querystring
   "Append the map of arguments args to the uri's querystring."
-  [uri shape args]
+  [^String uri shape args]
   (if-let [qs (util/query-string (mapcat (fn [[k v]]
                                            (when-let [member-shape (shape/member-shape shape k)]
                                              (serialize-qs-args member-shape
@@ -194,10 +196,10 @@
     :else              data))
 (defmethod parse-header-value "character" [_ data] (or data ""))
 (defmethod parse-header-value "boolean"   [_ data] (= data "true"))
-(defmethod parse-header-value "double"    [_ data] (Double. data))
-(defmethod parse-header-value "float"     [_ data] (Double. data))
-(defmethod parse-header-value "long"      [_ data] (Long. data))
-(defmethod parse-header-value "integer"   [_ data] (Long. data))
+(defmethod parse-header-value "double"    [_ data] (Double/parseDouble ^String data))
+(defmethod parse-header-value "float"     [_ data] (Double/parseDouble ^String data))
+(defmethod parse-header-value "long"      [_ data] (Long/parseLong ^String data))
+(defmethod parse-header-value "integer"   [_ data] (Long/parseLong ^String data))
 (defmethod parse-header-value "blob"      [_ data] (util/base64-decode data))
 (defmethod parse-header-value "timestamp"
   [shape data]

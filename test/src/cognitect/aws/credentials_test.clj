@@ -2,16 +2,14 @@
 ;; All rights reserved.
 
 (ns cognitect.aws.credentials-test
-  (:require [cognitect.aws.credentials :as credentials]
+  (:require [clojure.test :as t :refer [deftest testing use-fixtures is]]
+            [clojure.java.io :as io]
+            [cognitect.aws.credentials :as credentials]
             [cognitect.aws.util :as u]
             [cognitect.aws.test.utils :as tu]
             [cognitect.aws.ec2-metadata-utils :as ec2-metadata-utils]
-            [cognitect.aws.ec2-metadata-utils-test :as ec2-metadata-utils-test]
-            [clojure.spec.alpha :as s]
-            [clojure.spec.test.alpha :as stest]
-            [clojure.spec.gen.alpha :as gen]
-            [clojure.test :refer :all]
-            [clojure.java.io :as io]))
+            [cognitect.aws.ec2-metadata-utils-test :as ec2-metadata-utils-test])
+  (:import (java.time Instant)))
 
 (use-fixtures :once ec2-metadata-utils-test/test-server)
 
@@ -58,20 +56,36 @@
            (is (nil? (credentials/fetch p)))))))))
 
 (deftest system-properites-credentials-provider-test
+  (testing "all vars present"
+    (with-redefs [u/getProperty (tu/stub-getProperty {"aws.accessKeyId"  "foo"
+                                                      "aws.secretKey"    "bar"
+                                                      "aws.sessionToken" "baz"})]
+      (is (= {:aws/access-key-id     "foo"
+              :aws/secret-access-key "bar"
+              :aws/session-token     "baz"}
+             (credentials/fetch
+              (credentials/system-property-credentials-provider))))))
   (testing "required vars present"
     (with-redefs [u/getProperty (tu/stub-getProperty {"aws.accessKeyId" "foo"
-                                                      "aws.secretKey" "bar"})]
-      (is (map? (credentials/fetch
-                 (credentials/system-property-credentials-provider))))))
+                                                      "aws.secretKey"   "bar"})]
+      (is (= {:aws/access-key-id     "foo"
+              :aws/secret-access-key "bar"
+              :aws/session-token     nil}
+             (credentials/fetch
+              (credentials/system-property-credentials-provider))))))
   (testing "required vars blank"
     (doall
      (for [props [{}
                   {"aws.accessKeyId" "foo"}
                   {"aws.secretKey" "bar"}
                   {"aws.accessKeyId" ""
-                   "aws.secretKey" "bar"}
+                   "aws.secretKey"   "bar"}
+                  {"aws.accessKeyId" " "
+                   "aws.secretKey"   "bar"}
                   {"aws.accessKeyId" "foo"
-                   "aws.secretKey" ""}]]
+                   "aws.secretKey"   ""}
+                  {"aws.accessKeyId" "foo"
+                   "aws.secretKey"   " "}]]
        (with-redefs [u/getProperty (tu/stub-getProperty props)]
          (let [p (credentials/system-property-credentials-provider)]
            (is (nil? (credentials/fetch p)))))))))
@@ -148,13 +162,13 @@
               {:aws/access-key-id "id"
                :aws/secret-access-key "secret"
                ::credentials/ttl 1}))
-        creds (credentials/auto-refreshing-credentials p)]
+        creds (credentials/cached-credentials-with-auto-refresh p)]
     (credentials/fetch creds)
-    (Thread/sleep 5000)
+    (Thread/sleep 2500)
     (let [refreshed @cnt]
       (credentials/stop creds)
-      (Thread/sleep 2000)
-      (is (<= 3 refreshed) "The credentials have been refreshed.")
+      (Thread/sleep 1000)
+      (is (= 3 refreshed) "The credentials have been refreshed.")
       (is (= refreshed @cnt) "We stopped the auto-refreshing process."))))
 
 (deftest basic-credentials-provider
@@ -166,7 +180,7 @@
 
 (defn minutes-from-now
   [m]
-  (-> (java.time.Instant/now)
+  (-> (Instant/now)
       (.plusSeconds (* m 60))
       (.with java.time.temporal.ChronoField/NANO_OF_SECOND 0)
       str))
@@ -176,14 +190,17 @@
     (is (= 3600 (credentials/calculate-ttl {}))))
   (testing "refreshes in exp - 5 minutes"
     (let [c {:Expiration (minutes-from-now 60)}]
-      (is (< (- (* 55 60) 5)
+      (is (< (- (* 55 60) (* 5 60))
              (credentials/calculate-ttl c)
-             (+ (* 55 60) 5)))))
+             (+ (* 55 60) (* 5 60))))))
   (testing "short expiration minimum is one minute"
     (let [c {:Expiration (minutes-from-now 3)}]
+      (is (= 60 (credentials/calculate-ttl c)))))
+  (testing "supports java.util.Date (return value from sts :AssumeRole)"
+    (let [c {:Expiration (java.util.Date/from (Instant/parse (minutes-from-now 3)))}]
       (is (= 60 (credentials/calculate-ttl c))))))
 
 (comment
-  (run-tests)
+  (t/run-tests)
 
   )

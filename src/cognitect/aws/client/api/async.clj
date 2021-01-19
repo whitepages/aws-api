@@ -7,29 +7,34 @@
             [cognitect.aws.client :as client]
             [cognitect.aws.retry :as retry]
             [cognitect.aws.service :as service]
-            [cognitect.aws.util :as util]))
+            [cognitect.aws.dynaload :as dynaload]))
 
-(def ^:private validate-requests? (atom {}))
+(set! *warn-on-reflection* true)
+
+(defn ^:skip-wiki validate-requests?
+  "For internal use. Don't call directly."
+  [client]
+  (some-> client client/-get-info :validate-requests? deref))
 
 (defn ^:skip-wiki validate-requests
   "For internal use. Don't call directly."
   [client tf]
-  (swap! validate-requests? assoc client tf)
+  (reset! (-> client client/-get-info :validate-requests?) tf)
   (when tf
     (service/load-specs (-> client client/-get-info :service)))
   tf)
 
-(def ^:private registry-ref (delay (util/dynaload 'clojure.spec.alpha/registry)))
+(def ^:private registry-ref (delay (dynaload/load-var 'clojure.spec.alpha/registry)))
 (defn ^:skip-wiki registry
   "For internal use. Don't call directly."
   [& args] (apply @registry-ref args))
 
-(def ^:private valid?-ref (delay (util/dynaload 'clojure.spec.alpha/valid?)))
+(def ^:private valid?-ref (delay (dynaload/load-var 'clojure.spec.alpha/valid?)))
 (defn ^:skip-wiki valid?
   "For internal use. Don't call directly."
   [& args] (apply @valid?-ref args))
 
-(def ^:private explain-data-ref (delay (util/dynaload 'clojure.spec.alpha/explain-data)))
+(def ^:private explain-data-ref (delay (dynaload/load-var 'clojure.spec.alpha/explain-data)))
 (defn ^:skip-wiki explain-data
   "For internal use. Don't call directly."
   [& args] (apply @explain-data-ref args))
@@ -55,18 +60,16 @@
   [client op-map]
   (let [result-chan                          (or (:ch op-map) (a/promise-chan))
         {:keys [service retriable? backoff]} (client/-get-info client)
-        validation-error                     (and (get @validate-requests? client)
+        validation-error                     (and (validate-requests? client)
                                                   (validate service op-map))]
     (when-not (contains? (:operations service) (:op op-map))
       (throw (ex-info "Operation not supported" {:service   (keyword (service/service-name service))
                                                  :operation (:op op-map)})))
     (if validation-error
-      (do
-        (a/put! result-chan validation-error)
-        result-chan)
-      (let [send          #(client/send-request client op-map)
-            retriable?    (or (:retriable? op-map) retriable?)
-            backoff       (or (:backoff op-map) backoff)
-            response-chan (retry/with-retry send (a/promise-chan) retriable? backoff)]
-        (a/take! response-chan (partial a/put! result-chan))
-        result-chan))))
+      (a/put! result-chan validation-error)
+      (retry/with-retry
+        #(client/send-request client op-map)
+        result-chan
+        (or (:retriable? op-map) retriable?)
+        (or (:backoff op-map) backoff)))
+    result-chan))

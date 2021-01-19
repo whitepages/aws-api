@@ -20,6 +20,8 @@
   (:require [cognitect.aws.util :as util]
             [jsonista.core :as json]))
 
+(set! *warn-on-reflection* true)
+
 ;; ----------------------------------------------------------------------------------------
 ;; Helpers to navigate shapes
 ;; ----------------------------------------------------------------------------------------
@@ -76,24 +78,32 @@
      "unixTimestamp" (util/format-timestamp data)
      (default-format-fn data))))
 
+(defn- parse-date* [d & formats]
+  (->> formats
+       (map #(try (util/parse-date % d) (catch java.text.ParseException _ nil)))
+       (filter identity)
+       first))
+
 (defn parse-date
-  [shape data]
-  (condp = (:timestampFormat shape)
-    "rfc822"  (util/parse-date util/rfc822-date-format data)
-    "iso8601" (util/parse-date util/iso8601-date-format data)
-    (cond (int? data)
-          (java.util.Date. (* 1000 data))
+  [{:keys [timestampFormat]} data]
+  (when data
+    (cond (= "rfc822" timestampFormat)
+          (parse-date* data util/rfc822-date-format)
+          (= "iso8601" timestampFormat)
+          (parse-date* data
+                       util/iso8601-date-format
+                       util/iso8601-msecs-date-format)
+          (int? data)
+          (java.util.Date. (* 1000 ^int data))
           (double? data)
           (java.util.Date. (* 1000 (long data)))
           (re-matches #"^\d+$" data)
-          (java.util.Date. (* 1000 (read-string data)))
+          (java.util.Date. (* 1000 (long (read-string data))))
           :else
-          (->> [util/iso8601-date-format
-                util/iso8601-msecs-date-format
-                util/rfc822-date-format]
-               (map #(try (util/parse-date % data) (catch java.text.ParseException _ nil)))
-               (filter identity)
-               first))))
+          (parse-date* data
+                       util/iso8601-date-format
+                       util/iso8601-msecs-date-format
+                       util/rfc822-date-format))))
 
 ;; ----------------------------------------------------------------------------------------
 ;; JSON Parser & Serializer
@@ -396,10 +406,10 @@
 (defmethod xml-parse* "string"    [_ nodes] (or (data nodes) ""))
 (defmethod xml-parse* "character" [_ nodes] (or (data nodes) ""))
 (defmethod xml-parse* "boolean"   [_ nodes] (= (data nodes) "true"))
-(defmethod xml-parse* "double"    [_ nodes] (Double. (data nodes)))
-(defmethod xml-parse* "float"     [_ nodes] (Double. (data nodes)))
-(defmethod xml-parse* "long"      [_ nodes] (Long. (data nodes)))
-(defmethod xml-parse* "integer"   [_ nodes] (Long. (data nodes)))
+(defmethod xml-parse* "double"    [_ nodes] (Double/parseDouble ^String (data nodes)))
+(defmethod xml-parse* "float"     [_ nodes] (Double/parseDouble ^String (data nodes)))
+(defmethod xml-parse* "long"      [_ nodes] (Long/parseLong ^String (data nodes)))
+(defmethod xml-parse* "integer"   [_ nodes] (Long/parseLong ^String (data nodes)))
 (defmethod xml-parse* "blob"      [_ nodes] (util/base64-decode (data nodes)))
 (defmethod xml-parse* "timestamp"
   [shape nodes]

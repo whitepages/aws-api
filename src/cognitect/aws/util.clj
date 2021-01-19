@@ -7,14 +7,15 @@
             [clojure.data.xml :as xml]
             [jsonista.core :as json]
             [byte-streams :as byte-streams]
+            [clojure.core.async :as a]
             [clojure.java.io :as io])
-  (:import [java.text SimpleDateFormat]
+  (:import [java.util.concurrent Executors ExecutorService ThreadFactory]
+           [java.text SimpleDateFormat]
            [java.util Date TimeZone]
            [java.util UUID]
            [java.io InputStream]
            [java.nio.charset Charset]
            [java.security MessageDigest]
-           [org.apache.commons.codec.binary Hex]
            [javax.crypto Mac]
            [javax.crypto.spec SecretKeySpec]
            [java.nio ByteBuffer]
@@ -64,9 +65,19 @@
 (def ^ThreadLocal rfc822-date-format
   (date-format "EEE, dd MMM yyyy HH:mm:ss z"))
 
-(defn hex-encode
-  [^bytes bytes]
-  (String. (Hex/encodeHex bytes true)))
+(let [hex-chars (char-array [\0 \1 \2 \3 \4 \5 \6 \7 \8 \9 \a \b \c \d \e \f])]
+  (defn hex-encode
+    [^bytes bytes]
+    (let [bl (alength bytes)
+          ca (char-array (* 2 bl))]
+      (loop [i (int 0)
+             c (int 0)]
+        (if (< i bl)
+          (let [b (long (bit-and (long (aget bytes i)) 255))]
+            (aset ca c ^char (aget hex-chars (unsigned-bit-shift-right b 4)))
+            (aset ca (unchecked-inc-int c) (aget hex-chars (bit-and b 15)))
+            (recur (unchecked-inc-int i) (unchecked-add-int c 2)))
+          (String. ca))))))
 
 (defn sha-256
   "Returns the sha-256 digest (bytes) of data, which can be a
@@ -229,19 +240,25 @@
           (or data {})
           (:members shape)))
 
-(defonce ^:private dynalock (Object.))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; used to fetch creds and region
 
-(defn dynaload
-  [s]
-  (let [ns (namespace s)]
-    (assert ns)
-    (locking dynalock
-      (require (symbol ns)))
-    (let [v (resolve s)]
-      (if v
-        @v
-        (throw (RuntimeException. (str "Var " s " is not on the classpath")))))))
-
+(defn fetch-async
+  "Internal use. Do not call directly."
+  [fetch provider item]
+  (a/thread
+    (try
+      ;; lock on the provider to avoid redundant concurrent requests
+      ;; before the provider has a chance to cache the results of the
+      ;; first fetch.
+      (or (locking provider
+            (fetch provider))
+          {:cognitect.anomalies/category :cognitect.anomalies/fault
+           :cognitect.anomalies/message (format "Unable to fetch %s. See log for more details." item)})
+      (catch Throwable t
+        {:cognitect.anomalies/category :cognitect.anomalies/fault
+         ::throwable t
+         :cognitect.anomalies/message (format "Unable to fetch %s." item)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Wrappers - here to support testing with-redefs since
